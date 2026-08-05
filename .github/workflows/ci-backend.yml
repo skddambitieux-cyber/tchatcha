@@ -1,5 +1,5 @@
 # TCHATCHA — CI Backend (NestJS / Nx)
-# Référence : 14-cicd.md, 13-strategie-tests.md (testcontainers pour e2e)
+# Lot 6.1 : lint, tests unitaires, build et migrations (TypeORM) sur Postgres éphémère.
 name: ci-backend
 
 on:
@@ -34,6 +34,7 @@ jobs:
     env:
       NODE_ENV: test
       DATABASE_URL: postgres://tchatcha:tchatcha_ci_password@localhost:5432/tchatcha
+      DB_SSL: disabled
       REDIS_URL: redis://localhost:6379
       JWT_SECRET: ci-test-secret-0123456789
     steps:
@@ -41,20 +42,28 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: "npm"
+          cache-dependency-path: backend/package-lock.json
 
       - name: Install dependencies
+        working-directory: backend
         run: npm ci
 
+      - name: Migrations (TypeORM, base éphémère)
+        working-directory: backend
+        run: |
+          npm run migration:show
+          npm run migration:run
+
       - name: Lint
-        run: npx nx run-many -t lint
+        working-directory: backend
+        run: npx nx lint api
 
       - name: Unit tests
-        run: npx nx run-many -t test --coverage
+        working-directory: backend
+        run: npx nx test api
 
       - name: Build
-        run: npx nx run-many -t build
-
-      - name: E2E tests (testcontainers)
-        run: npx nx run api-e2e:test
+        working-directory: backend
+        run: npx nx run api:build

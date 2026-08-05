@@ -6,12 +6,12 @@
 import 'dotenv/config';
 import { DataSource } from 'typeorm';
 
+const sslRequired = process.env.DB_SSL === 'require';
+
 export default new DataSource({
   type: 'postgres',
   url: process.env.DATABASE_URL,
-  ssl: {
-    rejectUnauthorized: false,
-  },
+  ssl: sslRequired ? { rejectUnauthorized: false } : undefined,
   synchronize: false,
   entities: ['apps/api/src/modules/**/*.entity.ts'],
   migrations: ['apps/api/src/database/migrations/*.ts'],
