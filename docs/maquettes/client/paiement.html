@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="fr"><head><meta charset="UTF-8"><title>SCR-027 Paiement</title><link rel="stylesheet" href="../css/tchatcha.css"></head>
+<body>
+<div class="phone">
+  <div class="status"><span>09:41</span><span class="dots">•••</span></div>
+  <div class="topbar"><span class="back">‹</span><h1>Paiement</h1></div>
+  <div class="content">
+    <div class="card" style="text-align:center;gap:4px">
+      <div class="muted small">Montant total</div>
+      <div class="money lg" style="color:var(--secondary-600)">200 000 F</div>
+      <div class="sub">À : Kossi A. · Carrelage 150 m²</div>
+    </div>
+    <div class="section-title">Moyen de paiement</div>
+    <div class="card" style="border:2px solid var(--primary-500);cursor:pointer"><div class="row"><span style="font-size:24px">📱</span><div class="grow"><strong>MTN MoMo</strong><div class="sub">+229 61 23 45 67</div></div><span style="color:var(--primary-500)">✓</span></div></div>
+    <div class="card" style="cursor:pointer"><div class="row"><span style="font-size:24px">📱</span><div class="grow"><strong>Moov Money</strong><div class="sub">+229 61 23 45 67</div></div></div></div>
+    <div class="card" style="cursor:pointer"><div class="row"><span style="font-size:24px">💵</span><div class="grow"><strong>Espèces</strong><div class="sub">Payez le pro à la fin de la prestation</div></div></div></div>
+    <div class="banner-error" style="background:var(--primary-50);color:var(--primary-700)">🔒 Votre argent est sécurisé. Il ne sera versé au pro qu'à la fin de la prestation.</div>
+    <button class="btn primary block" onclick="this.closest('.phone').innerHTML=document.getElementById('succ').innerHTML" >Payer maintenant</button>
+  </div>
+</div>
+<template id="succ"><div class="phone"><div class="status"><span>09:41</span><span class="dots">•••</span></div>
+<div class="success-screen"><div class="check-anim">✓</div><h2 style="font-family:var(--font-display);font-size:24px">Paiement confirmé !</h2>
+<p class="muted">200 000 F validés · Créneau : jeu. 6 août 08:00<br>Kossi A. est prévenu. L'argent est sécurisé et<br>sera versé à la fin de la prestation.</p>
+<a href="avis.html" style="display:block;width:100%" ><button class="btn primary block">Voir ma prestation</button></a>
+<a href="../index.html" style="text-decoration:none"><button class="btn ghost block">Retour à l'accueil</button></a></div></div></template>
+</body></html>

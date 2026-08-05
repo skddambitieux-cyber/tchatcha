@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TCHATCHA — Maquettes haute fidélité (Étape 5)</title>
+<style>
+  body{font-family:'Inter','Segoe UI',sans-serif;background:#0e1b14;color:#fff;padding:32px;max-width:1200px;margin:0 auto}
+  h1{font-family:'Outfit','Segoe UI',sans-serif;color:#1B7A4D}
+  h2{font-family:'Outfit','Segoe UI',sans-serif;margin-top:36px;color:#FF8A3D;border-bottom:1px solid #2a3a31;padding-bottom:8px}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:14px;margin-top:16px}
+  a{color:#fff;text-decoration:none}
+  .card{background:#14261c;border:1px solid #244034;border-radius:14px;padding:14px;display:flex;flex-direction:column;gap:6px;transition:transform .15s}
+  .card:hover{transform:translateY(-2px);border-color:#1B7A4D}
+  .tag{font-size:12px;color:#7EC4A0}
+  .lien{font-weight:600}
+  .legende{color:#8fa79a;font-size:13px}
+  .parcours{background:#0f4f31;border-radius:16px;padding:20px;margin-top:12px}
+  .parcours h3{color:#FFA55C;margin-bottom:8px}
+  .parcours a{display:inline-block;background:#1B7A4D;padding:8px 16px;border-radius:999px;margin:6px 6px 0 0;font-weight:600;font-size:14px}
+</style>
+</head>
+<body>
+<h1>🟢 TCHATCHA — Maquettes haute fidélité</h1>
+<p class="legende">Étape 5 (5.1) — identité visuelle appliquée (22-identite-visuelle.md). Tokens : 07d. Wireframes : 07i/07j/07k. Écrans traçables SCR-XXX → US (07g).</p>
+
+<div class="parcours">
+  <h3>🧪 Prototype interactif (5.2) — parcours cliquables</h3>
+  <a href="parcours-client.html">Parcours Client (8 étapes)</a>
+  <a href="parcours-marketplace.html">Parcours Marketplace (7 étapes)</a>
+</div>
+
+<h2>📱 App Client (16 écrans)</h2>
+<div class="grid">
+  <div class="card"><span class="tag">SCR-001</span><a class="lien" href="client/onboarding.html">Onboarding</a></div>
+  <div class="card"><span class="tag">SCR-003/004</span><a class="lien" href="client/inscription-otp.html">Inscription / OTP</a></div>
+  <div class="card"><span class="tag">SCR-005</span><a class="lien" href="client/accueil.html">Accueil</a></div>
+  <div class="card"><span class="tag">SCR-007</span><a class="lien" href="client/recherche.html">Recherche</a></div>
+  <div class="card"><span class="tag">SCR-006</span><a class="lien" href="client/categories.html">Catégories</a></div>
+  <div class="card"><span class="tag">SCR-009</span><a class="lien" href="client/carte.html">Carte</a></div>
+  <div class="card"><span class="tag">SCR-008</span><a class="lien" href="client/liste-pros.html">Liste des professionnels</a></div>
+  <div class="card"><span class="tag">SCR-011</span><a class="lien" href="client/fiche-pro.html">Fiche professionnel</a></div>
+  <div class="card"><span class="tag">SCR-019/020</span><a class="lien" href="client/publication-besoin.html">Publication d'un besoin</a></div>
+  <div class="card"><span class="tag">SCR-022</span><a class="lien" href="client/reception-devis.html">Réception des devis</a></div>
+  <div class="card"><span class="tag">SCR-022b</span><a class="lien" href="client/comparaison-devis.html">Comparaison des devis</a></div>
+  <div class="card"><span class="tag">SCR-026</span><a class="lien" href="client/reservation.html">Réservation (créneau)</a></div>
+  <div class="card"><span class="tag">SCR-027</span><a class="lien" href="client/paiement.html">Paiement</a></div>
+  <div class="card"><span class="tag">SCR-017/018</span><a class="lien" href="client/messagerie.html">Messagerie</a></div>
+  <div class="card"><span class="tag">SCR-031</span><a class="lien" href="client/avis.html">Avis</a></div>
+  <div class="card"><span class="tag">SCR-032</span><a class="lien" href="client/profil.html">Profil</a></div>
+</div>
+
+<h2>🛠️ App Professionnel (10 écrans)</h2>
+<div class="grid">
+  <div class="card"><span class="tag">SCR-073</span><a class="lien" href="pro/creation-profil.html">Création du profil</a></div>
+  <div class="card"><span class="tag">SCR-071/072</span><a class="lien" href="pro/verification.html">Vérification</a></div>
+  <div class="card"><span class="tag">SCR-077</span><a class="lien" href="pro/dashboard.html">Tableau de bord</a></div>
+  <div class="card"><span class="tag">SCR-078</span><a class="lien" href="pro/reception-demandes.html">Réception des demandes</a></div>
+  <div class="card"><span class="tag">SCR-080</span><a class="lien" href="pro/creation-devis.html">Création d'un devis</a></div>
+  <div class="card"><span class="tag">SCR-082</span><a class="lien" href="pro/calendrier.html">Gestion calendrier</a></div>
+  <div class="card"><span class="tag">SCR-083</span><a class="lien" href="pro/missions-terminees.html">Missions terminées</a></div>
+  <div class="card"><span class="tag">SCR-085</span><a class="lien" href="pro/revenus.html">Revenus</a></div>
+  <div class="card"><span class="tag">SCR-087</span><a class="lien" href="pro/trust-score.html">Trust Score</a></div>
+  <div class="card"><span class="tag">SCR-086</span><a class="lien" href="pro/statistiques.html">Statistiques</a></div>
+</div>
+
+<h2>🛵 App Livreur — Phase 2 (5 écrans)</h2>
+<div class="grid">
+  <div class="card"><span class="tag">SCR-100</span><a class="lien" href="livreur/mission.html">Nouvelle mission</a></div>
+  <div class="card"><span class="tag">SCR-101</span><a class="lien" href="livreur/itineraire.html">Itinéraire</a></div>
+  <div class="card"><span class="tag">SCR-102</span><a class="lien" href="livreur/livraison-terminee.html">Livraison terminée</a></div>
+  <div class="card"><span class="tag">SCR-103</span><a class="lien" href="livreur/historique.html">Historique & gains</a></div>
+  <div class="card"><span class="tag">SCR-104</span><a class="lien" href="livreur/evaluation.html">Évaluation</a></div>
+</div>
+
+<h2>🖥️ Web Administration (6 écrans)</h2>
+<div class="grid">
+  <div class="card"><span class="tag">SCR-112</span><a class="lien" href="admin/tableau-de-bord.html">Dashboard</a></div>
+  <div class="card"><span class="tag">SCR-110</span><a class="lien" href="admin/verification-pros.html">Vérification des pros</a></div>
+  <div class="card"><span class="tag">SCR-111</span><a class="lien" href="admin/litiges.html">Litiges</a></div>
+  <div class="card"><span class="tag">SCR-113</span><a class="lien" href="admin/catalogue.html">Catalogue</a></div>
+  <div class="card"><span class="tag">SCR-114</span><a class="lien" href="admin/paiements.html">Paiements</a></div>
+  <div class="card"><span class="tag">SCR-115</span><a class="lien" href="admin/sanctions.html">Sanctions & suspensions</a></div>
+</div>
+
+<h2>⚠️ Cas d'erreur (6 écrans — décision bug.md)</h2>
+<div class="grid">
+  <div class="card"><span class="tag">SCR-027e</span><a class="lien" href="erreurs/paiement-refuse.html">Paiement refusé</a></div>
+  <div class="card"><span class="tag">SCR-026e</span><a class="lien" href="erreurs/pro-indisponible.html">Professionnel indisponible</a></div>
+  <div class="card"><span class="tag">SCR-023e</span><a class="lien" href="erreurs/devis-expire.html">Devis expiré</a></div>
+  <div class="card"><span class="tag">SCR-011e</span><a class="lien" href="erreurs/compte-suspendu.html">Compte suspendu</a></div>
+  <div class="card"><span class="tag">SCR-030e</span><a class="lien" href="erreurs/litige-ouvert.html">Litige ouvert</a></div>
+  <div class="card"><span class="tag">SCR-000e</span><a class="lien" href="erreurs/perte-connexion.html">Perte de connexion</a></div>
+</div>
+
+<p class="legende" style="margin-top:32px">Références : 22-identite-visuelle.md (identité) · 07d (tokens) · 07i/07j/07k (wireframes) · 07b (inventaire SCR) · 07g (US) · 19-business-rules.md (règles).</p>
+</body>
+</html>

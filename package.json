@@ -1,0 +1,15 @@
+{
+  "name": "tchatcha",
+  "version": "0.1.0",
+  "private": true,
+  "description": "TCHATCHA — plateforme de services de proximité au Bénin (monorepo)",
+  "scripts": {
+    "prepare": "husky",
+    "commitlint": "commitlint --from HEAD~1"
+  },
+  "devDependencies": {
+    "@commitlint/cli": "^19.0.0",
+    "@commitlint/config-conventional": "^19.0.0",
+    "husky": "^9.0.0"
+  }
+}

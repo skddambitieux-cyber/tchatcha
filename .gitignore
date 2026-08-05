@@ -1,0 +1,49 @@
+# TCHATCHA — .gitignore racine (14-cicd.md)
+
+# Secrets / env
+.env
+.env.*
+!.env.example
+
+# Node / Nx / NestJS
+node_modules/
+dist/
+coverage/
+.tmp/
+.temp/
+.nx/
+nx.json.tmp
+
+# Flutter / Dart
+mobile/**/.dart_tool/
+mobile/**/build/
+mobile/**/ios/Pods/
+mobile/**/ios/.symlinks/
+mobile/**/ios/Flutter/ephemeral/
+mobile/**/android/.gradle/
+mobile/**/android/local.properties
+mobile/**/*.apk
+mobile/**/*.aab
+mobile/**/pubspec.lock
+
+# IDE
+.idea/
+.vscode/
+*.iml
+*.code-workspace
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Docker (volumes locaux)
+pgdata/
+miniodata/
+
+# Terraform / deploy (pas de secrets)
+*.tfstate
+*.tfstate.*

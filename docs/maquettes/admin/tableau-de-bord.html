@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="fr"><head><meta charset="UTF-8"><title>SCR-112 Admin : tableau de bord</title><link rel="stylesheet" href="../css/tchatcha.css"></head>
+<body>
+<div class="desktop admin">
+  <div class="sidebar">
+    <div class="brand">TCHATCHA · Admin</div>
+    <div class="navitem admin active">Tableau de bord</div>
+    <div class="navitem admin">Utilisateurs</div>
+    <div class="navitem admin">Professionnels</div>
+    <div class="navitem admin">Vérifications</div>
+    <div class="navitem admin">Litiges</div>
+    <div class="navitem admin">Paiements</div>
+    <div class="navitem admin">Catalogue</div>
+  </div>
+  <div class="body">
+    <div class="topbar admin"><h1>Tableau de bord</h1><span class="muted">août 2026 · pilote Cotonou–Calavi</span></div>
+    <div class="card-grid">
+      <div class="kpi"><div class="num">8 120</div><div class="lab">Clients</div></div>
+      <div class="kpi"><div class="num">342</div><div class="lab">Pros vérifiés</div></div>
+      <div class="kpi"><div class="num">12 400</div><div class="lab">Demandes</div></div>
+      <div class="kpi"><div class="num">2 300</div><div class="lab">Devis envoyés</div></div>
+    </div>
+    <div class="kpis" style="grid-template-columns:repeat(4,1fr)">
+      <div class="kpi"><div class="num">61 900 000</div><div class="lab">Volume (F)</div></div>
+      <div class="kpi"><div class="num">84%</div><div class="lab">Satisfaction</div></div>
+      <div class="kpi"><div class="num">3,2 j</div><div class="lab">Temps traite</div></div>
+      <div class="kpi"><div class="num">4,2%</div><div class="lab">Litigieux</div></div>
+    </div>
+    <div class="row" style="gap:12px">
+      <div class="card grow" style="min-width:0"><div class="title">Demandes par catégorie</div>
+        <div class="tline"><div style="flex:3"></div><div style="flex:2" class="kpi-bar"></div><div style="flex:2"></div><div style="flex:1"></div><div style="flex:1"></div><div style="flex:1"></div><div style="flex:1"></div><div style="flex:1"></div></div>
+        <div class="small muted">Maison · Construction · Restauration · Numérique</div>
+      </div>
+      <div class="card" style="min-width:200px"><div class="title">Système</div>
+        <div class="row"><div class="grow small">S3 (R2)</div><span class="small" style="color:var(--success)">OK</span></div>
+        <div class="row"><div class="grow small">Redis</div><span class="small" style="color:var(--success)">OK</span></div>
+        <div class="row"><div class="grow small">Postgres</div><span class="small" style="color:var(--warning)">82 %</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+</body></html>

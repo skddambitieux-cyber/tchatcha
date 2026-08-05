@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>TCHATCHA — Parcours Client (8 étapes)</title>
+<style>
+  body{font-family:'Inter','Segoe UI',sans-serif;background:#0e1b14;color:#fff;padding:32px;max-width:1100px;margin:0 auto}
+  h1{font-family:'Outfit','Segoe UI',sans-serif;color:#1B7A4D}
+  h2{font-family:'Outfit','Segoe UI',sans-serif;color:#FF8A3D}
+  .steps{margin:24px 0;display:flex;flex-wrap:wrap;gap:8px}
+  .step{background:#14261c;border:1px solid #244034;border-radius:999px;padding:8px 16px;font-size:13px;color:#7EC4A0}
+  .list{display:flex;flex-direction:column;gap:10px;margin-top:16px}
+  .node{background:#14261c;border:1px solid #244034;border-left:5px solid #1B7A4D;border-radius:12px;padding:14px 18px;display:flex;gap:14px;align-items:center;flex-wrap:wrap}
+  .node .num{width:34px;height:34px;border-radius:50%;background:#1B7A4D;display:flex;align-items:center;justify-content:center;font-weight:700;flex-shrink:0}
+  .node .info{flex:1;min-width:200px}
+  .node .small{color:#8fa79a;font-size:13px}
+  .node a{color:#7EC4A0;text-decoration:none;border:1px solid #1B7A4D;padding:6px 14px;border-radius:999px;font-size:13px}
+  .node a:hover{background:#1B7A4D;color:#fff}
+  .rule{color:#FFA55C;font-size:12px}
+  a.big{display:inline-block;background:#1B7A4D;color:#fff;padding:10px 20px;border-radius:999px;text-decoration:none;font-weight:600}
+</style>
+</head>
+<body>
+<h1>🧪 Prototype interactif — Parcours Client (« Amina »)</h1>
+<p class="small">8 étapes · 14 écrans · règles métier appliquées (19-business-rules.md). Persona US-01 : Amina Dossou, Fidjrossè.</p>
+<div class="steps">
+  <span class="step">1. Onboarding</span><span class="step">2. Recherche</span><span class="step">3. Choix pro</span>
+  <span class="step">4. Demande</span><span class="step">5. Devis</span><span class="step">6. Réservation</span>
+  <span class="step">7. Paiement</span><span class="step">8. Avis</span>
+</div>
+
+<div class="list">
+  <div class="node"><span class="num">1</span><div class="info"><strong>Ouverture & inscription</strong>
+    <div class="small">Onboarding 3 slides → inscription → OTP SMS (MTN/Moov).</div>
+    <div class="rule">US-01 · BR-140 (consentement RGPD)</div></div>
+    <a href="client/onboarding.html">Onboarding →</a><a href="client/inscription-otp.html">Inscription/OTP →</a></div>
+
+  <div class="node"><span class="num">2</span><div class="info"><strong>Recherche</strong>
+    <div class="small">Accueil → barre recherche → résultats par mot-clé + catégories + carte.</div>
+    <div class="rule">US-02/03 · géoloc PostGIS</div></div>
+    <a href="client/accueil.html">Accueil →</a><a href="client/recherche.html">Recherche →</a><a href="client/categories.html">Catégories →</a><a href="client/carte.html">Carte →</a></div>
+
+  <div class="node"><span class="num">3</span><div class="info"><strong>Choix du professionnel</strong>
+    <div class="small">Liste triée (distance+note) → fiche pro (badge vérifié ★4,8, avis, prix m²).</div>
+    <div class="rule">US-04 · tri hybrid distance × Trust Score · BR-010 badge</div></div>
+    <a href="client/liste-pros.html">Liste pros →</a><a href="client/fiche-pro.html">Fiche pro →</a></div>
+
+  <div class="node"><span class="num">4</span><div class="info"><strong>Publication du besoin</strong>
+    <div class="small">Titre, catégorie, description, photos, budget, adresse, délai souhaité → soumission.</div>
+    <div class="rule">US-05 · BR-040..047 date/proximité/géoloc</div></div>
+    <a href="client/publication-besoin.html">Publier un besoin →</a></div>
+
+  <div class="node"><span class="num">5</span><div class="info"><strong>Réception & comparaison des devis</strong>
+    <div class="small">Notifications push → 3 devis (Kossi 200k / Rachidi 215k / Simplice 185k) triés, filtres, comparaison côte à côte.</div>
+    <div class="rule">US-06 · BR-060..062 val. 72 h · pourboire</div></div>
+    <a href="client/reception-devis.html">Devis reçus →</a><a href="client/comparaison-devis.html">Comparer →</a></div>
+
+  <div class="node"><span class="num">6</span><div class="info"><strong>Réservation du créneau</strong>
+    <div class="small">Choix Kossi A. → planning temps réel → jeudi 6 août 08:00 → confirmation.</div>
+    <div class="rule">US-07 · BR-050..052 synchronisation planning</div></div>
+    <a href="client/reservation.html">Réserver →</a></div>
+
+  <div class="node"><span class="num">7</span><div class="info"><strong>Paiement sécurisé</strong>
+    <div class="small">MTN MoMo 200 000 F → escrow sécurisé (libéré à la fin) → confirmation + maj planning.</div>
+    <div class="rule">US-08/09 · BR-090..093 escrow & double confirmation</div></div>
+    <a href="client/paiement.html">Payer →</a><a href="erreurs/paiement-refuse.html">Cas : refusé</a></div>
+
+  <div class="node"><span class="num">8</span><div class="info"><strong>Prestation, messagerie & avis</strong>
+    <div class="small">Suivi via messagerie → fin de prestation → note (étoiles + commentaire + photos).</div>
+    <div class="rule">US-10 · BR-120..126 modération avis</div></div>
+    <a href="client/messagerie.html">Messagerie →</a><a href="client/avis.html">Avis →</a></div>
+</div>
+
+<p style="margin-top:24px"><a class="big" href="index.html">← Retour maquettes</a></p>
+</body>
+</html>

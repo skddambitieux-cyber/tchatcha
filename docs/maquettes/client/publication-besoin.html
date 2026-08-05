@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="fr"><head><meta charset="UTF-8"><title>SCR-019/020 Publication besoin</title><link rel="stylesheet" href="../css/tchatcha.css"></head>
+<body>
+<div class="phone">
+  <div class="status"><span>09:41</span><span class="dots">•••</span></div>
+  <div class="topbar"><span class="back">‹</span><h1>Publier un besoin</h1></div>
+  <div class="content">
+    <div class="stepper"><span class="dot on"></span><span class="dot"></span></div>
+    <div class="field"><label>Catégorie</label><select class="input"><option>Artisans › Carreleur</option></select></div>
+    <div class="field"><label>Titre *</label><input class="input" value="Pose de carrelage 150 m²" maxlength="160"><span class="small muted" style="text-align:right">12/160</span></div>
+    <div class="field"><label>Description *</label><textarea class="input" rows="3">Salon + 2 chambres, pose droite, fourniture du carrelage à discuter.</textarea></div>
+    <div class="field"><label>Photos (optionnel)</label>
+      <div class="row">
+        <div class="thumb placeholder" style="border:2px dashed var(--neutral-300);background:var(--surface);font-size:24px;cursor:pointer">+</div>
+        <div class="thumb placeholder" style="background:var(--primary-100)">📷</div>
+        <div class="thumb placeholder" style="background:var(--primary-100)">🏠</div>
+      </div>
+    </div>
+    <div class="btn primary block" onclick="this.style.display='none';document.getElementById('s2').style.display='flex'" style="cursor:pointer">Continuer</div>
+    <div id="s2" style="display:none;flex-direction:column;gap:14px">
+      <div class="stepper"><span class="dot"></span><span class="dot on"></span></div>
+      <div class="row"><div class="field grow"><label>Budget min</label><input class="input" value="150 000"></div><div class="field grow"><label>Budget max</label><input class="input" value="250 000"></div><div class="field"><label>Devise</label><select class="input"><option>FCFA</option></select></div></div>
+      <div class="field"><label>Date souhaitée *</label><input class="input" value="12 septembre 09:00" type="text"></div>
+      <div class="row"><button class="btn outline sm" style="flex:1">Normal</button><button class="btn primary sm" style="flex:1;background:var(--secondary-500)">Urgent</button></div>
+      <div class="field"><label>Où ? *</label><input class="input" value="📍 Ma position · Fidjrossè, Cotonou"></div>
+      <a href="reception-devis.html" class="btn primary block" style="text-decoration:none;text-align:center">Publier le besoin</a>
+    </div>
+  </div>
+</div>
+</body></html>

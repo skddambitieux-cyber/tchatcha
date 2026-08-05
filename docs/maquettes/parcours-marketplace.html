@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>TCHATCHA — Parcours Marketplace (7 étapes)</title>
+<style>
+  body{font-family:'Inter','Segoe UI',sans-serif;background:#0e1b14;color:#fff;padding:32px;max-width:1100px;margin:0 auto}
+  h1{font-family:'Outfit','Segoe UI',sans-serif;color:#1B7A4D}
+  h2{font-family:'Outfit','Segoe UI',sans-serif;color:#FF8A3D}
+  .steps{margin:24px 0;display:flex;flex-wrap:wrap;gap:8px}
+  .step{background:#14261c;border:1px solid #244034;border-radius:999px;padding:8px 16px;font-size:13px;color:#7EC4A0}
+  .list{display:flex;flex-direction:column;gap:10px;margin-top:16px}
+  .node{background:#14261c;border:1px solid #244034;border-left:5px solid #FF8A3D;border-radius:12px;padding:14px 18px;display:flex;gap:14px;align-items:center;flex-wrap:wrap}
+  .node .num{width:34px;height:34px;border-radius:50%;background:#FF8A3D;display:flex;align-items:center;justify-content:center;font-weight:700;flex-shrink:0}
+  .node .info{flex:1;min-width:200px}
+  .node .small{color:#8fa79a;font-size:13px}
+  .node a{color:#FFA55C;text-decoration:none;border:1px solid #FF8A3D;padding:6px 14px;border-radius:999px;font-size:13px}
+  .node a:hover{background:#FF8A3D;color:#fff}
+  .rule{color:#7EC4A0;font-size:12px}
+  a.big{display:inline-block;background:#1B7A4D;color:#fff;padding:10px 20px;border-radius:999px;text-decoration:none;font-weight:600}
+</style>
+</head>
+<body>
+<h1>🧪 Prototype interactif — Parcours Professionnel (« Kossi »)</h1>
+<p class="small">7 étapes · 9 écrans · règles métier appliquées. Persona US-41 : Kossi A., carreleur Fidjrossè.</p>
+<div class="steps">
+  <span class="step">1. Création profil</span><span class="step">2. Vérification</span>
+  <span class="step">3. Demande reçue</span><span class="step">4. Devis</span>
+  <span class="step">5. Prestation</span><span class="step">6. Paiement</span><span class="step">7. Notation</span>
+</div>
+
+<div class="list">
+  <div class="node"><span class="num">1</span><div class="info"><strong>Création du profil & on-boarding</strong>
+    <div class="small">Identité, métier (Carreleur), expérience, ville/quartier, prix indicatif par m².</div>
+    <div class="rule">US-41 · catalogue pros 06a · CAT-001</div></div>
+    <a href="pro/creation-profil.html">Créer le profil →</a></div>
+
+  <div class="node"><span class="num">2</span><div class="info"><strong>Vérification (badge)</strong>
+    <div class="small">CNI + selfie → dossier soumis → contrôle < 24 h → badge « Vérifié ».</div>
+    <div class="rule">US-42 · BR-010..014</div></div>
+    <a href="pro/verification.html">Vérifier →</a><a href="admin/verification-pros.html">Vue Admin →</a></div>
+
+  <div class="node"><span class="num">3</span><div class="info"><strong>Réception d'une demande</strong>
+    <div class="small">Dashboard : 1 urgence + 3 normales. Push « répondre vite » (bonus Trust Score).</div>
+    <div class="rule">US-43 · BR-052 (proximité) · BR-056 (temps réponse)</div></div>
+    <a href="pro/dashboard.html">Dashboard →</a><a href="pro/reception-demandes.html">Demandes →</a></div>
+
+  <div class="node"><span class="num">4</span><div class="info"><strong>Envoi d'un devis</strong>
+    <div class="small">Prix 200 000 F ≤ budget client 250k · délai 6 j · message — validations inline.</div>
+    <div class="rule">US-44 · BR-060..062</div></div>
+    <a href="pro/creation-devis.html">Créer le devis →</a></div>
+
+  <div class="node"><span class="num">5</span><div class="info"><strong>Prestation & planning</strong>
+    <div class="small">Créneau confirmé dans le calendrier → bloc indisponible → réalisation sur site.</div>
+    <div class="rule">US-45 · BR-080 no-show · BR-086 prestation partielle</div></div>
+    <a href="pro/calendrier.html">Planning →</a><a href="erreurs/pro-indisponible.html">Cas : indisponible</a></div>
+
+  <div class="node"><span class="num">6</span><div class="info"><strong>Réception du paiement sécurisé</strong>
+    <div class="small">Escrow 200 000 F libéré après double confirmation → revenus mensuels + pourboires.</div>
+    <div class="rule">US-46 · BR-090..093 · BR-110..113 reversements</div></div>
+    <a href="pro/revenus.html">Revenus →</a><a href="admin/paiements.html">Vue Admin →</a></div>
+
+  <div class="node"><span class="num">7</span><div class="info"><strong>Notation & Trust Score</strong>
+    <div class="small">Avis client 4,8 ★ → mise à jour du score 88/100 · plus de visibilité ensuite.</div>
+    <div class="rule">US-47 · BR-120..126 · BR-020..023</div></div>
+    <a href="pro/trust-score.html">Trust Score →</a><a href="pro/statistiques.html">Statistiques →</a><a href="pro/missions-terminees.html">Missions →</a></div>
+</div>
+
+<p style="margin-top:24px"><a class="big" href="index.html">← Retour maquettes</a></p>
+</body>
+</html>

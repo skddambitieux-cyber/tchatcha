@@ -1,0 +1,3 @@
+# TCHATCHA — hook pre-commit (Husky) : exécute le lint avant commit
+# Référence : 14-cicd.md (Conventional Commits, qualité minimale)
+npx lint-staged

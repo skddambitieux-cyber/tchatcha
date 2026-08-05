@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="fr"><head><meta charset="UTF-8"><title>SCR-071/072 Vérification</title><link rel="stylesheet" href="../css/tchatcha.css"></head>
+<body>
+<div class="phone">
+  <div class="status"><span>09:41</span><span class="dots">•••</span></div>
+  <div class="topbar"><span class="back">‹</span><h1>Vérification</h1></div>
+  <div class="content">
+    <div class="hero" style="background:var(--primary-600)"><h2>Obtenez le badge « Vérifié »</h2><p>Plus de confiance = plus de clients. Vos documents restent confidentiels.</p></div>
+    <div class="card"><div class="row"><span style="font-size:22px;color:var(--success)">✅</span><div class="grow title">Pièce d'identité</div><span class="small muted">valide</span></div></div>
+    <div class="card"><div class="row"><span style="font-size:22px;color:var(--success)">✅</span><div class="grow title">Selfie</div><span class="small muted">valide</span></div></div>
+    <div class="card"><div class="row"><span style="font-size:22px;color:var(--primary-300)">⬜</span><div class="grow title">Document pro (optionnel)</div><span class="chip">+ Ajouter</span></div></div>
+    <div class="card"><div class="row"><span style="font-size:22px;color:var(--primary-300)">⬜</span><div class="grow title">Diplôme (optionnel)</div><span class="chip">+ Ajouter</span></div></div>
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <button class="btn primary block" onclick="document.getElementById('ok').style.display='flex'">Soumettre mon dossier</button>
+      <div id="ok" style="display:none;flex-direction:column;gap:10px">
+        <div class="card" style="text-align:center;padding:20px">
+          <div style="font-size:40px">⏳</div><h3 style="font-family:var(--font-display);margin:6px 0">En cours de contrôle</h3>
+          <p class="small muted">Temps moyen : 24 h. Vous serez notifié dès l'attribution du badge.</p>
+          <div class="progressbar" style="width:60%;margin:10px auto"><div style="width:60%"></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</body></html>
