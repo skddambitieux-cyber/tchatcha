@@ -12,7 +12,7 @@ export enum OtpPurpose {
   PAYMENT = 'PAYMENT',
 }
 
-@Entity({ schema: 'auth', name: 'otp_codes' })
+@Entity({ schema: 'authz', name: 'otp_codes' })
 export class OtpCode extends BaseEntity {
   @Column({ type: 'varchar', length: 20 })
   @Index('idx_otp_phone_purpose_created', ['phone', 'purpose', 'created_at'])

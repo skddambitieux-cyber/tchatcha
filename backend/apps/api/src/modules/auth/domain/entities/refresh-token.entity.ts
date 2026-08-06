@@ -6,7 +6,7 @@ import { Column, Entity, Index, JoinColumn, ManyToOne, OneToOne } from 'typeorm'
 import { BaseEntity } from '../../../../shared/entities/base.entity';
 import { User } from './user.entity';
 
-@Entity({ schema: 'auth', name: 'refresh_tokens' })
+@Entity({ schema: 'authz', name: 'refresh_tokens' })
 @Index('uq_refresh_tokens_token_hash', ['token_hash'], { unique: true })
 @Index('idx_refresh_tokens_user', ['user_id', 'revoked_at'])
 export class RefreshToken extends BaseEntity {
