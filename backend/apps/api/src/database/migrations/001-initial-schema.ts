@@ -1,6 +1,6 @@
-﻿/**
+/**
  * TCHATCHA â€” Migration initiale : extensions + schÃ©mas + tables MVP.
- * FidÃ¨le Ã  06-schema-base.md (PostgreSQL 16 + PostGIS), 06a, 06b.
+* Fidele a 06-schema-base.md (PostgreSQL 16 + PostGIS), 06a, 06b.
  * Migrations = 1 par module (convention 06 Â§6.4) ; cette migration 001 crÃ©e
  * l'infrastructure de base ; les suivantes affineront chaque domaine.
  */
