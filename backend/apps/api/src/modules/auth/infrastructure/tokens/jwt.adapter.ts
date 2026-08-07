@@ -17,7 +17,6 @@ export class JwtAdapter implements TokenManagerPort {
   signAccess(payload: TokenClaims): string {
     return this.jwt.sign(payload, {
       secret: this.config.get<string>('JWT_SECRET'),
-      expiresIn: '15m',
     });
   }
 

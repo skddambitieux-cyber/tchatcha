@@ -12,12 +12,19 @@ export enum UserStatus {
 }
 
 @Entity({ schema: 'users', name: 'users' })
+@Index('uq_users_phone', ['phone', 'country_code'], {
+  unique: true,
+  where: 'deleted_at IS NULL',
+})
+@Index('uq_users_email', ['email'], {
+  unique: true,
+  where: 'email IS NOT NULL AND deleted_at IS NULL',
+})
 export class User extends BaseEntity {
   @Column({ type: 'char', length: 2 })
   country_code: string;
 
   @Column({ type: 'varchar', length: 20 })
-  @Index('uq_users_phone', { unique: true })
   phone: string;
 
   @Column({ type: 'varchar', length: 255, nullable: true })
@@ -36,7 +43,6 @@ export class User extends BaseEntity {
   locale: string;
 
   @Column({ type: 'varchar', length: 32 })
-  @Index('uq_users_email', { unique: true })
   status: UserStatus;
 
   @Column({ type: 'timestamptz', nullable: true })
