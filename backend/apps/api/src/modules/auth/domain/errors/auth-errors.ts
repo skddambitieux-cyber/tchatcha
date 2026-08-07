@@ -128,3 +128,42 @@ export class SmsUnavailableError extends Error {
     this.name = 'SmsUnavailableError';
   }
 }
+
+export class RoleMismatchError extends Error {
+  readonly code = 'state_conflict';
+  readonly httpStatus = 409;
+  constructor() {
+    super('Rôle incompatible avec le compte existant');
+    this.name = 'RoleMismatchError';
+  }
+}
+
+export class CategoryRequiredError extends Error {
+  readonly code = 'validation_failed';
+  readonly httpStatus = 422;
+  readonly details = [{ field: 'category_id', reason: 'required' }];
+  constructor() {
+    super('Catégorie requise pour un profil PROFESSIONAL');
+    this.name = 'CategoryRequiredError';
+  }
+}
+
+export class LocalityRequiredError extends Error {
+  readonly code = 'validation_failed';
+  readonly httpStatus = 422;
+  readonly details = [{ field: 'locality_id', reason: 'required' }];
+  constructor() {
+    super('Localité requise pour un profil PROFESSIONAL');
+    this.name = 'LocalityRequiredError';
+  }
+}
+
+export class ZoneRequiredError extends Error {
+  readonly code = 'validation_failed';
+  readonly httpStatus = 422;
+  readonly details = [{ field: 'delivery_zone', reason: 'required' }];
+  constructor() {
+    super('Zone de livraison requise pour un profil DELIVERER');
+    this.name = 'ZoneRequiredError';
+  }
+}

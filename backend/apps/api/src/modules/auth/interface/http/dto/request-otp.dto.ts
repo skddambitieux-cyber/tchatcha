@@ -23,6 +23,10 @@ export class DeviceDto {
   @IsString()
   @Length(0, 255)
   user_agent?: string;
+
+  @IsOptional()
+  @IsString()
+  ip?: string;
 }
 
 export class RequestOtpDto {
