@@ -27,7 +27,7 @@ Règles transverses (applicables à tous les modules) :
 
 **Cas d'utilisation** : `RegisterWithOtp` · `LoginWithOtp` · `RefreshSession` · `Logout` (révocation) · `VerifyDevice` (nouvelle connexion → NT-017) · `AdminTOTPLogin` · `ResendOtp` · `LockAccount` (seuils).
 
-**Services** : `OtpService` (génération, vérification, cooldown 45 s, max 5 essais) · `TokenService` (access 15 min, refresh rotatif 30 j, family + rotation detection) · `SessionService` (liste sessions actives, révocation) · `RiskService` (vélocité OTP, IP, device).
+**Services** : `OtpService` (génération, vérification, cooldown 45 s, 3 essais/code, max 5 envois/15 min) · `TokenService` (access 15 min, refresh rotatif 30 j, family + rotation detection) · `SessionService` (liste sessions actives, révocation) · `RiskService` (vélocité OTP, IP, device).
 
 **Ports** : `OtpSenderPort` (envoi) · `TokenManagerPort` · `SessionRepositoryPort` · `UserRepositoryPort` (externe : créé par users) · `EventPublisherPort`.
 
@@ -37,7 +37,7 @@ Règles transverses (applicables à tous les modules) :
 
 **DTO** : `RequestOtpDto {phone, country_code}` · `VerifyOtpDto {phone, code, device?}` · `RefreshDto {refresh_token}` · `AdminLoginDto {email, password}` · `AdminVerifyDto {email, totp}`.
 
-**Validations** : téléphone normalisé (E.164, +229…) · code 6 chiffres · cooldown 45 s · max 5 essais/15 min → verrouillage 15 min · refresh : famille cohérente sinon rotation détectée → révocation totale.
+**Validations** : téléphone normalisé (E.164, +229…) · code 6 chiffres · cooldown 45 s · 3 essais/code · max 5 envois/15 min → verrouillage 15 min · refresh : famille cohérente sinon rotation détectée → révocation totale.
 
 **Erreurs** : `PhoneInvalid` (422) · `OtpInvalid` (401) · `OtpExpired` (401 + resend) · `AccountLocked` (423) · `RefreshReused` (401 + revoke-all) · `DeviceUntrusted` (428 — après NT-017).
 

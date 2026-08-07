@@ -71,7 +71,7 @@ de rôle dans le use-case ; tests e2e négatifs par rôle (13 §5) ; sanctions :
 |---|---|
 | Génération | 6 chiffres CSPRNG, HMAC horodaté, TTL 5 min, usage unique |
 | Envoi | cooldown 45 s ; max 5 requêtes/15 min ; verrouillage 15 min |
-| Vérification | max 5 essais puis verrouillage ; pas d'énumération (message identique) |
+| Vérification | max 3 essais par code (`ck_otp_attempts`) puis code invalidé ; pas d'énumération (message identique) |
 | Paiement sensible | OTP 2ᵉ facteur supplémentaire (SMS-002) pour gros montants (seuil config) |
 | Fournisseur SMS | 2 fournisseurs (principal + repli) ; logs d'envoi sans code |
 
