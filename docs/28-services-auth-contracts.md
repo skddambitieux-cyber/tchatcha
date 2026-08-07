@@ -1,4 +1,4 @@
-# Services métier — Lot 6.2 : Authentification (contrats d'interface)
+﻿# Services métier — Lot 6.2 : Authentification (contrats d'interface)
 
 > Livrable « Services métier » de l'ordre **Alignement docs → Contrats API → Services métier → Tests → Implémentation**.
 > **Aucune implémentation.** Sources : `27-api-contracts-auth.md` (contrats API figés),
@@ -164,8 +164,8 @@ interface CompleteRegistrationInput {
   category_id?: string;         // requis si PROFESSIONAL
   division_id?: string;         // requis si PROFESSIONAL
   locality_id?: string;         // requis si PROFESSIONAL
-  delivery_zone?: string;       // requis si DELIVERY_PERSON
-  delivery_means?: string;      // requis si DELIVERY_PERSON
+  delivery_zone?: string;       // requis si DELIVERER
+  delivery_means?: string;      // requis si DELIVERER
   device?: DeviceInfo;
 }
 interface RegistrationResult { user: UserPublic; tokens: AuthTokens }  // première session

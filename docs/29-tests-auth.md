@@ -1,4 +1,4 @@
-# Tests — Lot 6.2 : Authentification (cas Gherkin/xUnit)
+﻿# Tests — Lot 6.2 : Authentification (cas Gherkin/xUnit)
 
 > Livrable « Tests » de l'ordre **Alignement docs → Contrats API → Services métier → Tests → Implémentation**.
 > **Aucune implémentation.** Sources : `26-spec-auth-lot-6-2.md` (§3–§8, D1–D5),

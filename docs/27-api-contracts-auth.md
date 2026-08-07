@@ -1,4 +1,4 @@
-# Contrats API — Lot 6.2 : Authentification
+﻿# Contrats API — Lot 6.2 : Authentification
 
 > Livrable « Contrats API » de l'ordre **Alignement docs → Contrats API → Services métier → Tests → Implémentation**.
 > **Aucune implémentation.** Source : `26-spec-auth-lot-6-2.md` (décisions D1–D5, état DÉCISIONS FINALES),
@@ -29,7 +29,7 @@
 |---|---|
 | `Phone` | `{ country_code: string(2) — ISO A-2, ex "BJ" ; phone: string(8–15 digits, sans + ni espace) }` normalisé E.164 |
 | `OtpPurpose` | `REGISTER \| LOGIN \| RESET_PASSWORD \| PAYMENT` (enum existant) |
-| `UserRole` | `CLIENT \| PROFESSIONAL \| DELIVERY_PERSON` (plus ADMIN, réservé) |
+| `UserRole` | `CLIENT \| PROFESSIONAL \| DELIVERER` (plus ADMIN, réservé) |
 | `DeviceInfo` | `{ device_id?: string(≤64) , ip?: string, user_agent?: string }` |
 | `Consents` | `{ cgv: boolean, privacy: boolean, marketing?: boolean }` |
 | `AuthTokens` | `{ access_token: string (JWT, 15 min), token_type: "Bearer", expires_in: 900, refresh_token: string (opaque, 30 j) }` |
@@ -139,14 +139,14 @@ Idempotency-Key: 6e7b3f3e-…   (optionnel)
 }
 ```
 Pour `PROFESSIONAL` : `+ "category_id": "uuid", "locality_id": "uuid", "division_id": "uuid"`.
-Pour `DELIVERY_PERSON` : `+ "delivery_zone": "COTONOU"`.
+Pour `DELIVERER` : `+ "delivery_zone": "COTONOU"`.
 
 **Règles par rôle (D5)** :
 | Rôle | Requis | Statut | Note |
 |---|---|---|---|
 | CLIENT | `full_name`, `consent.cgv` | ACTIVE | |
 | PROFESSIONAL | + `category_id`, `division_id`, `locality_id` | ACTIVE (avec `verification_status=UNVERIFIED`) | création permise avant vérification CIN |
-| DELIVERY_PERSON | + `delivery_zone`, `delivery_means` | ACTIVE (`UNVERIFIED`) | |
+| DELIVERER | + `delivery_zone`, `delivery_means` | ACTIVE (`UNVERIFIED`) | |
 
 **Réponses**
 | Code | Corps | Notes |

@@ -1,4 +1,4 @@
-# Spécification fonctionnelle — Lot 6.2 : Authentification
+﻿# Spécification fonctionnelle — Lot 6.2 : Authentification
 
 > Livrable de cadrage, **aucune implémentation** n'est faite dans ce document.
 > Sources : `02-adr.md` (ADR-004), `06a-tables-mvp-core.md`, `07f-ux-writing.md`, `07g-user-stories.md`,
@@ -143,7 +143,7 @@ Après `SUCCESS` OTP, l'utilisateur complète son profil : `POST /auth/register`
 |---|---|---|
 | `CLIENT` | `full_name` (2–80 car.), consentements (CGV obligatoire, confidentialité) | aucun supplément MVP |
 | `PROFESSIONAL` | `full_name`, **catégorie** (référentiel 20), **localité** (référentiel Bénin) | vérification d'identité (CIN) reportée — profil marqué `UNVERIFIED` |
-| `DELIVERY_PERSON` | `full_name`, zone de livraison (commune), moyen de transport | vérification reportée — marqué `UNVERIFIED` |
+| `DELIVERER` | `full_name`, zone de livraison (commune), moyen de transport | vérification reportée — marqué `UNVERIFIED` |
 
 - **RF-CPT-01** : le rôle est choisi à l'inscription et verrouillé au niveau d'application
   (la création d'un second compte avec le même téléphone = 409) (D5).
@@ -286,7 +286,7 @@ Après `SUCCESS` OTP, l'utilisateur complète son profil : `POST /auth/register`
 | D2 | Provider SMS | **Adapter + mock en dev** pour le lot 6.2 : `SmsAdapter` (interface) + implémentations `ConsoleSmsProvider` (dev/test, journalise le code) et `HttpSmsProvider` (stub prêt à brancher SMS Bénin/Intouch). Aucun appel réseau réel au MVP. | Aucun compte/crédit SMS disponible ; le contrat (interface) permet le branchement réel sans refonte (ADR-004 : « l'interface le permettra »). |
 | D3 | Cycle PENDING_OTP | L'utilisateur est créé **dès la demande OTP** (statut `PENDING_OTP`, sans profil). Il devient `ACTIVE` **à la création du compte** (après OTP vérifié, `otp_verified_at` posé). Si l'OTP expire ou échoue : **le user PENDING_OTP reste** (réutilisable pour une nouvelle demande) ; **purge après 24 h sans vérification** (nettoyage TTL + job). | Table `users.users` `DEFAULT 'PENDING_OTP'` ; évite une 2ᵉ étape de création implicite ; `uq_users_phone` protège le numéro dès l'émission. |
 | D4 | Refresh token | **Rotation par famille confirmée** : chaque usage invalide l'ancien (`replaced_by`), une réutilisation d'un token déjà remplacé = **rejeu → révocation de toute la famille** (`revoked_at` sur toute la chaîne) + événement `auth.session.revoked`. Expiration 30 j ; logout révoque la session ciblée. | ADR-004 + table `refresh_tokens` (`replaced_by`, `revoked_at`) déjà en place ; comportement « détection de vol » exigé par `12-api-blueprint`. |
-| D5 | Rôles | Le rôle est **verrouillé à la création du compte** (choisi à l'inscription, jamais modifiable via API publique). Les différences Client/Pro/Livreur sont **encodées dès la création** : `CLIENT` (aucun supplément), `PROFESSIONAL` (`category_id` + `locality_id` obligatoires, `verification_status=UNVERIFIED`), `DELIVERY_PERSON` (`delivery_zone` obligatoire, `verification_status=UNVERIFIED`). | Évite des règles dispersées ; vérification (CIN/zone) = lot ultérieur, le statut `UNVERIFIED` ne bloque pas la création. |
+| D5 | Rôles | Le rôle est **verrouillé à la création du compte** (choisi à l'inscription, jamais modifiable via API publique). Les différences Client/Pro/Livreur sont **encodées dès la création** : `CLIENT` (aucun supplément), `PROFESSIONAL` (`category_id` + `locality_id` obligatoires, `verification_status=UNVERIFIED`), `DELIVERER` (`delivery_zone` obligatoire, `verification_status=UNVERIFIED`). | Évite des règles dispersées ; vérification (CIN/zone) = lot ultérieur, le statut `UNVERIFIED` ne bloque pas la création. |
 
 **Conséquence** : `12-api-blueprint.md` et `15-securite.md` seront mis en cohérence (doc uniquement) :
 - envoi OTP : cooldown 45 s + **max 5 envois / 15 min** → verrouillage canal 15 min ;
