@@ -1,7 +1,7 @@
 /**
- * TCHATCHA — Migration initiale : extensions + schémas + tables MVP.
- * Fidèle à 06-schema-base.md (PostgreSQL 16 + PostGIS), 06a, 06b.
- * Migrations = 1 par module (convention 06 §6.4) ; cette migration 001 crée
+ * TCHATCHA â€” Migration initiale : extensions + schÃ©mas + tables MVP.
+* Fidele a 06-schema-base.md (PostgreSQL 16 + PostGIS), 06a, 06b.
+ * Migrations = 1 par module (convention 06 Â§6.4) ; cette migration 001 crÃ©e
  * l'infrastructure de base ; les suivantes affineront chaque domaine.
  */
 import { MigrationInterface, QueryRunner } from 'typeorm';
@@ -17,9 +17,9 @@ export class InitialSchema1744200000000 implements MigrationInterface {
     await queryRunner.query(`CREATE EXTENSION IF NOT EXISTS pgcrypto`);
     await queryRunner.query(`CREATE EXTENSION IF NOT EXISTS ltree`);
 
-    // 2. Schémas métier
+    // 2. SchÃ©mas mÃ©tier
     for (const schema of [
-      'auth', 'users', 'geo', 'pros', 'market', 'pay', 'review',
+      'authz', 'users', 'geo', 'pros', 'market', 'pay', 'review',
       'msg', 'notif', 'admin', 'audit', 'media', 'search',
     ]) {
       await queryRunner.query(`CREATE SCHEMA IF NOT EXISTS ${schema}`);
@@ -87,9 +87,9 @@ export class InitialSchema1744200000000 implements MigrationInterface {
     await queryRunner.query(`CREATE UNIQUE INDEX uq_users_email ON users.users(email) WHERE email IS NOT NULL AND deleted_at IS NULL`);
     await queryRunner.query(`CREATE INDEX idx_users_status ON users.users(country_code, status)`);
 
-    // 6. auth.otp_codes (trace d'audit — la vérification chaude vit en Redis)
+    // 6. authz.otp_codes (trace d'audit â€” la vÃ©rification chaude vit en Redis)
     await queryRunner.query(`
-      CREATE TABLE auth.otp_codes (
+      CREATE TABLE authz.otp_codes (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
         phone VARCHAR(20) NOT NULL,
         country_code CHAR(2) NOT NULL REFERENCES geo.countries(code),
@@ -101,11 +101,11 @@ export class InitialSchema1744200000000 implements MigrationInterface {
         created_at TIMESTAMPTZ NOT NULL DEFAULT now()
       )
     `);
-    await queryRunner.query(`CREATE INDEX idx_otp_phone_purpose_created ON auth.otp_codes(phone, purpose, created_at DESC)`);
+    await queryRunner.query(`CREATE INDEX idx_otp_phone_purpose_created ON authz.otp_codes(phone, purpose, created_at DESC)`);
 
-    // 7. auth.refresh_tokens (rotation, ADR-004)
+    // 7. authz.refresh_tokens (rotation, ADR-004)
     await queryRunner.query(`
-      CREATE TABLE auth.refresh_tokens (
+      CREATE TABLE authz.refresh_tokens (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
         user_id UUID NOT NULL REFERENCES users.users(id) ON DELETE CASCADE,
         token_hash VARCHAR(64) NOT NULL UNIQUE,
@@ -114,13 +114,13 @@ export class InitialSchema1744200000000 implements MigrationInterface {
         user_agent TEXT,
         expires_at TIMESTAMPTZ NOT NULL,
         revoked_at TIMESTAMPTZ,
-        replaced_by UUID REFERENCES auth.refresh_tokens(id),
+        replaced_by UUID REFERENCES authz.refresh_tokens(id),
         created_at TIMESTAMPTZ NOT NULL DEFAULT now()
       )
     `);
-    await queryRunner.query(`CREATE INDEX idx_refresh_tokens_user ON auth.refresh_tokens(user_id, revoked_at)`);
+    await queryRunner.query(`CREATE INDEX idx_refresh_tokens_user ON authz.refresh_tokens(user_id, revoked_at)`);
 
-    // 8. users.user_roles (multi-rôles — PRD)
+    // 8. users.user_roles (multi-rÃ´les â€” PRD)
     await queryRunner.query(`
       CREATE TABLE users.user_roles (
         user_id UUID NOT NULL REFERENCES users.users(id) ON DELETE CASCADE,
@@ -172,7 +172,7 @@ export class InitialSchema1744200000000 implements MigrationInterface {
       )
     `);
 
-    // 12. users.consents (RGPD — 06d §6)
+    // 12. users.consents (RGPD â€” 06d Â§6)
     await queryRunner.query(`
       CREATE TABLE users.consents (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -198,7 +198,7 @@ export class InitialSchema1744200000000 implements MigrationInterface {
       )
     `);
 
-    // 14. pros.categories (arborescence seedable — 20-catalogue-benin.md)
+    // 14. pros.categories (arborescence seedable â€” 20-catalogue-benin.md)
     await queryRunner.query(`
       CREATE TABLE pros.categories (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -270,7 +270,7 @@ export class InitialSchema1744200000000 implements MigrationInterface {
     `);
     await queryRunner.query(`CREATE INDEX idx_services_category ON pros.services(category_id, is_primary)`);
 
-    // 17. pros.locations (PostGIS — recherche par rayon)
+    // 17. pros.locations (PostGIS â€” recherche par rayon)
     await queryRunner.query(`
       CREATE TABLE pros.locations (
         professional_id UUID PRIMARY KEY REFERENCES pros.profiles(id) ON DELETE CASCADE,
@@ -296,7 +296,7 @@ export class InitialSchema1744200000000 implements MigrationInterface {
       )
     `);
 
-    // 19. pros.reputation (Trust Score — 06d §2)
+    // 19. pros.reputation (Trust Score â€” 06d Â§2)
     await queryRunner.query(`
       CREATE TABLE pros.reputation (
         professional_id UUID PRIMARY KEY REFERENCES pros.profiles(id) ON DELETE CASCADE,
@@ -319,7 +319,7 @@ export class InitialSchema1744200000000 implements MigrationInterface {
     `);
     await queryRunner.query(`CREATE INDEX idx_reputation_score ON pros.reputation(trust_score DESC)`);
 
-    // 20. market.service_requests (agrégat racine — Mode B)
+    // 20. market.service_requests (agrÃ©gat racine â€” Mode B)
     await queryRunner.query(`
       CREATE TABLE market.service_requests (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -373,7 +373,7 @@ export class InitialSchema1744200000000 implements MigrationInterface {
     await queryRunner.query(`CREATE INDEX idx_quotes_pro ON market.quotes(professional_id, created_at DESC)`);
     await queryRunner.query(`CREATE UNIQUE INDEX uq_quotes_active ON market.quotes(request_id, professional_id) WHERE status = 'PENDING'`);
 
-    // 22. market.bookings (verrouille le créneau + double confirmation)
+    // 22. market.bookings (verrouille le crÃ©neau + double confirmation)
     await queryRunner.query(`
       CREATE TABLE market.bookings (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -670,7 +670,7 @@ export class InitialSchema1744200000000 implements MigrationInterface {
     `);
     await queryRunner.query(`CREATE INDEX idx_aggregate_events_time ON audit.aggregate_events(created_at)`);
 
-    // 30. media.files (06d §5)
+    // 30. media.files (06d Â§5)
     await queryRunner.query(`
       CREATE TABLE media.files (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -695,7 +695,7 @@ export class InitialSchema1744200000000 implements MigrationInterface {
     await queryRunner.query(`CREATE INDEX idx_media_owner ON media.files(owner_type, owner_id, sort_order)`);
     await queryRunner.query(`CREATE INDEX idx_media_s3 ON media.files(s3_key)`);
 
-    // 31. search.pro_search_docs (projection — 06b §9, ajustement 3)
+    // 31. search.pro_search_docs (projection â€” 06b Â§9, ajustement 3)
     await queryRunner.query(`
       CREATE TABLE search.pro_search_docs (
         professional_id UUID PRIMARY KEY REFERENCES pros.profiles(id) ON DELETE CASCADE,
@@ -757,16 +757,17 @@ export class InitialSchema1744200000000 implements MigrationInterface {
       'users.addresses',
       'users.devices',
       'users.user_roles',
-      'auth.refresh_tokens',
-      'auth.otp_codes',
+      'authz.refresh_tokens',
+      'authz.otp_codes',
       'users.users',
       'geo.divisions',
       'geo.countries',
     ]) {
       await queryRunner.query(`DROP TABLE IF EXISTS ${table} CASCADE`);
     }
-    for (const schema of ['search', 'media', 'audit', 'admin', 'notif', 'msg', 'review', 'pay', 'market', 'pros', 'geo', 'users', 'auth']) {
+    for (const schema of ['search', 'media', 'audit', 'admin', 'notif', 'msg', 'review', 'pay', 'market', 'pros', 'geo', 'users', 'authz']) {
       await queryRunner.query(`DROP SCHEMA IF EXISTS ${schema} CASCADE`);
     }
   }
 }
+

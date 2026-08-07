@@ -47,3 +47,7 @@ miniodata/
 # Terraform / deploy (pas de secrets)
 *.tfstate
 *.tfstate.*
+
+# Communication locale (bug.md reste uniquement sur la machine)
+bug.md
+etape2.md

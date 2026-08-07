@@ -6,10 +6,7 @@ on:
   push:
     branches: [main, develop]
   pull_request:
-
-concurrency:
-  group: ci-backend-${{ github.ref }}
-  cancel-in-progress: true
+  workflow_dispatch:
 
 jobs:
   backend:
