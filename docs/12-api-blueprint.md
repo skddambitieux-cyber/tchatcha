@@ -135,7 +135,7 @@ affichage inline fiable côté mobile (11 §5).
 |---|---|---|
 | IP | 100 req/min | tous (proxy) |
 | Compte | 300 req/min | authentifiés |
-| OTP | 1 req / 45 s ; 5 essais / 15 min → verrouillage 15 min | `/auth/otp/*` |
+| OTP | Envoi : 1 req / 45 s + max 5 envois / 15 min → `phone_locked` 15 min · Vérification : 3 essais / code (`ck_otp_attempts`) → `otp_exhausted` | `/auth/otp/*` |
 | Chat | 30 msg/min | `/conversations/:id/messages` |
 | Recherche | 60 req/min | `/search/*` |
 | Login admin | 5 essais / 15 min + TOTP | `/admin/login` |
