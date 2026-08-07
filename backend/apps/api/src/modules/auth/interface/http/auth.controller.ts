@@ -13,10 +13,12 @@ import {
 import { RequestOtpDto } from './dto/request-otp.dto';
 import { VerifyOtpDto } from './dto/verify-otp.dto';
 import { LoginDto } from './dto/login.dto';
+import { RefreshDto } from './dto/refresh.dto';
 import { RegisterDto } from './dto/register.dto';
 import { OtpPurpose } from '../../domain/entities/otp-code.entity';
 import { OtpService } from '../../application/services/otp.service';
 import { LoginService } from '../../application/services/login.service';
+import { TokenService } from '../../application/services/token.service';
 import { ProfileService } from '../../application/services/profile.service';
 import { DeviceInfo } from '../../application/types/auth.types';
 
@@ -25,6 +27,7 @@ export class AuthController {
   constructor(
     private readonly otpService: OtpService,
     private readonly loginService: LoginService,
+    private readonly tokenService: TokenService,
     private readonly profileService: ProfileService,
   ) {}
 
@@ -81,6 +84,20 @@ export class AuthController {
       device: this.buildDevice(dto.device, req, userAgent),
     });
     return { ...result.tokens, user: result.user };
+  }
+
+  @Post('refresh')
+  @HttpCode(200)
+  async refresh(
+    @Body() dto: RefreshDto,
+    @Req() req: Request,
+    @Headers('user-agent') userAgent?: string,
+  ) {
+    const result = await this.tokenService.rotate({
+      refreshToken: dto.refresh_token,
+      device: this.buildDevice(dto.device, req, userAgent),
+    });
+    return result;
   }
 
   @Post('register')

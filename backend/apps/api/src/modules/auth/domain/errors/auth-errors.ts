@@ -161,9 +161,47 @@ export class LocalityRequiredError extends Error {
 export class ZoneRequiredError extends Error {
   readonly code = 'validation_failed';
   readonly httpStatus = 422;
-  readonly details = [{ field: 'delivery_zone', reason: 'required' }];
+  readonly details: Array<{ field: string; reason: string }> = [
+    { field: 'delivery_zone', reason: 'required' },
+  ];
   constructor() {
     super('Zone de livraison requise pour un profil DELIVERER');
     this.name = 'ZoneRequiredError';
+  }
+}
+
+export class RefreshUnknownError extends Error {
+  readonly code = 'unauthorized';
+  readonly httpStatus = 401;
+  constructor() {
+    super('Token de rafraîchissement inconnu');
+    this.name = 'RefreshUnknownError';
+  }
+}
+
+export class RefreshExpiredError extends Error {
+  readonly code = 'refresh_expired';
+  readonly httpStatus = 401;
+  constructor() {
+    super('Refresh token expiré');
+    this.name = 'RefreshExpiredError';
+  }
+}
+
+export class RefreshReusedError extends Error {
+  readonly code = 'refresh_reused';
+  readonly httpStatus = 401;
+  constructor() {
+    super('Refresh token déjà utilisé (rejeu détecté)');
+    this.name = 'RefreshReusedError';
+  }
+}
+
+export class DeviceMismatchError extends Error {
+  readonly code = 'invalid_device';
+  readonly httpStatus = 401;
+  constructor() {
+    super('Appareil inconnu pour cette session');
+    this.name = 'DeviceMismatchError';
   }
 }
