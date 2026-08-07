@@ -24,6 +24,7 @@ import { EventPublisherPortToken } from './application/ports/event-publisher.por
 import { OtpService } from './application/services/otp.service';
 import { TokenService } from './application/services/token.service';
 import { LoginService } from './application/services/login.service';
+import { SessionService } from './application/services/session.service';
 import { ProfileService } from './application/services/profile.service';
 import { InMemoryOtpStore } from './infrastructure/persistence/in-memory-otp.store';
 import { ConsoleSmsProvider } from './infrastructure/providers/console-sms.provider';
@@ -53,6 +54,7 @@ import { AuthExceptionsFilter } from './interface/http/filters/auth-exceptions.f
     OtpService,
     TokenService,
     LoginService,
+    SessionService,
     ProfileService,
     { provide: APP_FILTER, useClass: AuthExceptionsFilter },
     { provide: OtpStorePortToken, useClass: InMemoryOtpStore },

@@ -11,6 +11,7 @@ import {
   RefreshExpiredError,
   RefreshReusedError,
   RefreshUnknownError,
+  TokenExpiredError,
 } from '../../domain/errors/auth-errors';
 import {
   ClockPort,
@@ -182,5 +183,81 @@ describe('TokenService.rotate — docs 29 §2.3', () => {
     await expect(service.rotate({ refreshToken: 'rt', device })).rejects.toThrow(
       AccountLockedError,
     );
+  });
+
+  describe('verifyAccess — docs 29 §2.3', () => {
+    it('token expiré → TokenExpired (token_expired)', async () => {
+      const fakeTokens = {
+        signAccess: jest.fn(),
+        verifyAccess: jest.fn(() => {
+          const err = new Error('jwt expired') as Error & { name: string };
+          err.name = 'TokenExpiredError';
+          throw err;
+        }),
+      };
+      const moduleRef = await Test.createTestingModule({
+        providers: [
+          TokenService,
+          { provide: SessionRepositoryPortToken, useValue: sessions },
+          { provide: TokenManagerPortToken, useValue: fakeTokens },
+          { provide: ClockPortToken, useValue: { now: () => NOW } },
+          { provide: UserRepositoryPortToken, useValue: {} },
+          { provide: EventPublisherPortToken, useValue: eventPublisher },
+        ],
+      }).compile();
+      const svc = moduleRef.get(TokenService);
+      expect(() => svc.verifyAccess('expired')).toThrow(TokenExpiredError);
+    });
+
+    it('token falsifié → RefreshUnknown (unauthorized)', async () => {
+      const fakeTokens = {
+        signAccess: jest.fn(),
+        verifyAccess: jest.fn(() => {
+          throw new Error('invalid signature');
+        }),
+      };
+      const moduleRef = await Test.createTestingModule({
+        providers: [
+          TokenService,
+          { provide: SessionRepositoryPortToken, useValue: sessions },
+          { provide: TokenManagerPortToken, useValue: fakeTokens },
+          { provide: ClockPortToken, useValue: { now: () => NOW } },
+          { provide: UserRepositoryPortToken, useValue: {} },
+          { provide: EventPublisherPortToken, useValue: eventPublisher },
+        ],
+      }).compile();
+      const svc = moduleRef.get(TokenService);
+      expect(() => svc.verifyAccess('bad')).toThrow(RefreshUnknownError);
+    });
+
+    it('token valide → claims restitués', () => {
+      const fakeTokens = {
+        signAccess: jest.fn(),
+        verifyAccess: jest.fn().mockReturnValue({
+          sub: 'user-1',
+          role: UserRole.CLIENT,
+          device_id: 'dev-abc',
+          jti: 'jti-1',
+          exp: Math.floor(NOW.getTime() / 1000) + 900,
+        }),
+      };
+      return Test.createTestingModule({
+        providers: [
+          TokenService,
+          { provide: SessionRepositoryPortToken, useValue: sessions },
+          { provide: TokenManagerPortToken, useValue: fakeTokens },
+          { provide: ClockPortToken, useValue: { now: () => NOW } },
+          { provide: UserRepositoryPortToken, useValue: {} },
+          { provide: EventPublisherPortToken, useValue: eventPublisher },
+        ],
+      })
+        .compile()
+        .then((moduleRef) => {
+          const svc = moduleRef.get(TokenService);
+          const claims = svc.verifyAccess('good');
+          expect(claims.sub).toBe('user-1');
+          expect(claims.role).toBe(UserRole.CLIENT);
+        });
+    });
   });
 });

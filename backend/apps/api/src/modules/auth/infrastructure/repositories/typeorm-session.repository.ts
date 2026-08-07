@@ -4,8 +4,9 @@
  */
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { IsNull, Repository } from 'typeorm';
+import { IsNull, MoreThan, Repository } from 'typeorm';
 import {
+  ActiveSession,
   RefreshSession,
   SessionRepositoryPort,
   StoredRefreshSession,
@@ -75,5 +76,23 @@ export class TypeOrmSessionRepository implements SessionRepositoryPort {
       { revoked_at: new Date() },
     );
     return (result.affected ?? 0) > 0;
+  }
+
+  async listActive(userId: string): Promise<ActiveSession[]> {
+    const rows = await this.repo.find({
+      where: { user_id: userId, revoked_at: IsNull() },
+      order: { expires_at: 'DESC' },
+    });
+    const now = new Date();
+    return rows
+      .filter((r) => r.expires_at.getTime() > now.getTime())
+      .map((r) => ({
+        id: r.id,
+        device_id: r.device_id,
+        ip: r.ip,
+        user_agent: r.user_agent,
+        created_at: r.created_at,
+        expires_at: r.expires_at,
+      }));
   }
 }

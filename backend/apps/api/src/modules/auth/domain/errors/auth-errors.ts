@@ -205,3 +205,21 @@ export class DeviceMismatchError extends Error {
     this.name = 'DeviceMismatchError';
   }
 }
+
+export class TokenExpiredError extends Error {
+  readonly code = 'token_expired';
+  readonly httpStatus = 401;
+  constructor() {
+    super('Access token expiré');
+    this.name = 'TokenExpiredError';
+  }
+}
+
+export class SessionNotFoundError extends Error {
+  readonly code = 'unauthorized';
+  readonly httpStatus = 401;
+  constructor() {
+    super('Session introuvable');
+    this.name = 'SessionNotFoundError';
+  }
+}

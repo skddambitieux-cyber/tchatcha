@@ -25,6 +25,15 @@ export interface StoredRefreshSession {
   replacedById: string | null;
 }
 
+export interface ActiveSession {
+  id: string;
+  device_id: string;
+  ip: string;
+  user_agent: string | null;
+  created_at: Date;
+  expires_at: Date;
+}
+
 export interface SessionRepositoryPort {
   save(session: RefreshSession): Promise<string>;
   findByTokenHash(tokenHash: string): Promise<StoredRefreshSession | null>;
@@ -34,6 +43,8 @@ export interface SessionRepositoryPort {
   revokeAllForUser(userId: string): Promise<void>;
   /** Révocation ciblée d'un refresh (logout, idempotent). */
   revokeByTokenHash(tokenHash: string): Promise<boolean>;
+  /** Sessions actives (revoked_at IS NULL et expires_at > now) d'un user. */
+  listActive(userId: string): Promise<ActiveSession[]>;
 }
 
 export const SessionRepositoryPortToken = 'SessionRepositoryPort';

@@ -1,6 +1,6 @@
 /**
- * TCHATCHA — Controller auth : otp/request, otp/verify, login, register
- * (contrats : docs/27-api-contracts-auth.md §2–§5).
+ * TCHATCHA — Controller auth : otp/request, otp/verify, login, refresh,
+ * register, logout (contrats : docs/27-api-contracts-auth.md §2–§8).
  */
 import {
   Body,
@@ -14,12 +14,15 @@ import { RequestOtpDto } from './dto/request-otp.dto';
 import { VerifyOtpDto } from './dto/verify-otp.dto';
 import { LoginDto } from './dto/login.dto';
 import { RefreshDto } from './dto/refresh.dto';
+import { LogoutDto } from './dto/logout.dto';
 import { RegisterDto } from './dto/register.dto';
 import { OtpPurpose } from '../../domain/entities/otp-code.entity';
 import { OtpService } from '../../application/services/otp.service';
 import { LoginService } from '../../application/services/login.service';
 import { TokenService } from '../../application/services/token.service';
+import { SessionService } from '../../application/services/session.service';
 import { ProfileService } from '../../application/services/profile.service';
+import { SessionNotFoundError, TokenExpiredError, RefreshUnknownError } from '../../domain/errors/auth-errors';
 import { DeviceInfo } from '../../application/types/auth.types';
 
 @Controller('auth')
@@ -28,6 +31,7 @@ export class AuthController {
     private readonly otpService: OtpService,
     private readonly loginService: LoginService,
     private readonly tokenService: TokenService,
+    private readonly sessionService: SessionService,
     private readonly profileService: ProfileService,
   ) {}
 
@@ -124,6 +128,32 @@ export class AuthController {
       ...result.tokens,
       user: result.user,
     };
+  }
+
+  @Post('logout')
+  @HttpCode(204)
+  async logout(
+    @Body() dto: LogoutDto,
+    @Headers('authorization') authorization?: string,
+  ) {
+    const userId = this.readBearerUser(authorization);
+    await this.sessionService.revoke(userId, dto.refresh_token);
+  }
+
+  @Post('logout-all')
+  @HttpCode(204)
+  async logoutAll(@Headers('authorization') authorization?: string) {
+    const userId = this.readBearerUser(authorization);
+    await this.sessionService.revokeAll(userId);
+  }
+
+  /** Découpe le Bearer, vérifie l'access token et retourne claims.sub. */
+  private readBearerUser(authorization?: string): string {
+    if (!authorization || !authorization.startsWith('Bearer ')) {
+      throw new RefreshUnknownError();
+    }
+    const claims = this.tokenService.verifyAccess(authorization.slice(7));
+    return claims.sub;
   }
 
   private buildDevice(

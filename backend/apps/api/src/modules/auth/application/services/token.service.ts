@@ -24,6 +24,7 @@ import {
   RefreshExpiredError,
   RefreshReusedError,
   RefreshUnknownError,
+  TokenExpiredError,
 } from '../../domain/errors/auth-errors';
 import {
   EventPublisherPort,
@@ -71,6 +72,18 @@ export class TokenService {
       exp: Math.floor(this.clock.now().getTime() / 1000) + ACCESS_TTL_SECONDS,
     };
     return this.tokens.signAccess(claims);
+  }
+
+  /** Valide un access token et retourne les claims (28 §4, 29 §2.3). */
+  verifyAccess(token: string): TokenClaims {
+    try {
+      return this.tokens.verifyAccess(token);
+    } catch (err) {
+      if (err instanceof Error && err.name === 'TokenExpiredError') {
+        throw new TokenExpiredError();
+      }
+      throw new RefreshUnknownError();
+    }
   }
 
   async issueRefresh(user: UserPublic, device: DeviceInfo): Promise<string> {
