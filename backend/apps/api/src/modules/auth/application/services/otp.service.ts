@@ -38,6 +38,10 @@ import {
   PhoneLockedError,
   SmsUnavailableError,
 } from '../../domain/errors/auth-errors';
+import {
+  EventPublisherPort,
+  EventPublisherPortToken,
+} from '../ports/event-publisher.port';
 
 export interface RequestOtpInput {
   countryCode: string;
@@ -90,6 +94,8 @@ export class OtpService {
     private readonly users: UserRepositoryPort,
     @Inject(OtpAuditRepositoryPortToken)
     private readonly otpAudit: OtpAuditRepositoryPort,
+    @Inject(EventPublisherPortToken)
+    private readonly events: EventPublisherPort,
   ) {}
 
   async request(input: RequestOtpInput): Promise<OtpRequested> {
@@ -119,6 +125,10 @@ export class OtpService {
         (OTP_WINDOW_SECONDS * 1000 - (now.getTime() - oldest.getTime())) / 1000,
       );
       await this.otpStore.lock(phone, new Date(now.getTime() + OTP_WINDOW_SECONDS * 1000));
+      this.events.publish({
+        type: 'auth.user.locked',
+        payload: { phone, reason: 'otp_send_limit', ts: now.toISOString() },
+      });
       throw new PhoneLockedError(Math.max(1, retry));
     }
 
@@ -209,6 +219,15 @@ export class OtpService {
         input.purpose,
       );
       await this.otpAudit.updateAttempts(phone, input.purpose, attempts);
+      this.events.publish({
+        type: 'auth.otp.attempt_failed',
+        payload: {
+          phone,
+          purpose: input.purpose,
+          attempts_left: Math.max(0, OTP_MAX_ATTEMPTS - attempts),
+          ts: now.toISOString(),
+        },
+      });
       if (attempts >= OTP_MAX_ATTEMPTS) {
         await this.otpStore.invalidate(phone, input.purpose);
         throw new OtpExhaustedError();

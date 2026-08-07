@@ -35,6 +35,10 @@ import {
   OtpAuditRepositoryPortToken,
 } from '../ports/otp-audit-repository.port';
 import {
+  EventPublisherPort,
+  EventPublisherPortToken,
+} from '../ports/event-publisher.port';
+import {
   generateOtpCode,
   hashOtpCode,
   OtpService,
@@ -143,6 +147,7 @@ describe('OtpService — docs 29 §2.1/§2.2', () => {
   let markOtpVerified: jest.Mock;
   let users: { statusByPhone: Map<string, UserStatus>; created: string[] };
   let audit: { record: jest.Mock; updateAttempts: jest.Mock; markUsed: jest.Mock };
+  let events: { publish: jest.Mock };
 
   beforeEach(async () => {
     send = jest.fn();
@@ -152,6 +157,7 @@ describe('OtpService — docs 29 §2.1/§2.2', () => {
       updateAttempts: jest.fn(),
       markUsed: jest.fn(),
     };
+    events = { publish: jest.fn() };
     users = { statusByPhone: new Map(), created: [] };
     clock = new FakeClock(T0);
     store = new FakeOtpStore();
@@ -181,6 +187,7 @@ describe('OtpService — docs 29 §2.1/§2.2', () => {
           },
         },
         { provide: OtpAuditRepositoryPortToken, useValue: audit },
+        { provide: EventPublisherPortToken, useValue: events },
       ],
     }).compile();
 
@@ -216,7 +223,7 @@ describe('OtpService — docs 29 §2.1/§2.2', () => {
       ).rejects.toThrow(OtpCooldownError);
     });
 
-    it('fenêtre : 5 envois dans les 15 min → PhoneLocked (D1)', async () => {
+    it('fenêtre : 5 envois dans les 15 min → PhoneLocked (D1) + événement locked', async () => {
       store.setState(PHONE, {
         lastSentAt: new Date(T0.getTime() - 60_000),
         sendAt: [0, 1, 2, 3, 4].map((i) => new Date(T0.getTime() - (i + 1) * 60_000)),
@@ -224,6 +231,9 @@ describe('OtpService — docs 29 §2.1/§2.2', () => {
       await expect(
         service.request({ countryCode: 'BJ', phone: PHONE, purpose: OtpPurpose.REGISTER }),
       ).rejects.toThrow(PhoneLockedError);
+      expect(events.publish).toHaveBeenCalledWith(
+        expect.objectContaining({ type: 'auth.user.locked' }),
+      );
     });
 
     it('REGISTER + compte déjà ACTIVE → PhoneAlreadyRegistered', async () => {
@@ -306,7 +316,7 @@ describe('OtpService — docs 29 §2.1/§2.2', () => {
       expect(res.userId).toBe('u1');
     });
 
-    it('code faux, attempts 0 → OtpInvalid + attempts_left=2', async () => {
+    it('code faux, attempts 0 → OtpInvalid + attempts_left=2 + événement attempt_failed', async () => {
       await store.seedOtp(PHONE, OtpPurpose.LOGIN);
       const err = await service.verify({
         countryCode: 'BJ',
@@ -317,6 +327,9 @@ describe('OtpService — docs 29 §2.1/§2.2', () => {
       expect(err).toBeInstanceOf(OtpInvalidError);
       expect(err.attemptsLeft).toBe(OTP_MAX_ATTEMPTS - 1);
       expect(audit.updateAttempts).toHaveBeenCalledWith(PHONE, OtpPurpose.LOGIN, 1);
+      expect(events.publish).toHaveBeenCalledWith(
+        expect.objectContaining({ type: 'auth.otp.attempt_failed' }),
+      );
     });
 
     it('code faux, attempts 1 → OtpInvalid + attempts_left=1', async () => {
