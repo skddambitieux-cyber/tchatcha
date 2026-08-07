@@ -25,6 +25,8 @@ export interface ActivateCommand {
 export interface UserRepositoryPort {
   findByPhone(countryCode: string, phone: string): Promise<User | null>;
   findById(userId: string): Promise<User | null>;
+  /** Rôle principal du compte (users.user_roles) — null si aucun rôle. */
+  findRole(userId: string): Promise<UserRole | null>;
   /** Crée un compte PENDING_OTP à la demande d'OTP REGISTER (D3). */
   createPending(
     countryCode: string,

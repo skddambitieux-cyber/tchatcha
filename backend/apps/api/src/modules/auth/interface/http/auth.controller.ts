@@ -1,6 +1,6 @@
 /**
- * TCHATCHA — Controller auth : otp/request, otp/verify, register
- * (contrats : docs/27-api-contracts-auth.md §2–§3, §5).
+ * TCHATCHA — Controller auth : otp/request, otp/verify, login, register
+ * (contrats : docs/27-api-contracts-auth.md §2–§5).
  */
 import {
   Body,
@@ -12,8 +12,11 @@ import {
 } from '@nestjs/common';
 import { RequestOtpDto } from './dto/request-otp.dto';
 import { VerifyOtpDto } from './dto/verify-otp.dto';
+import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
+import { OtpPurpose } from '../../domain/entities/otp-code.entity';
 import { OtpService } from '../../application/services/otp.service';
+import { LoginService } from '../../application/services/login.service';
 import { ProfileService } from '../../application/services/profile.service';
 import { DeviceInfo } from '../../application/types/auth.types';
 
@@ -21,6 +24,7 @@ import { DeviceInfo } from '../../application/types/auth.types';
 export class AuthController {
   constructor(
     private readonly otpService: OtpService,
+    private readonly loginService: LoginService,
     private readonly profileService: ProfileService,
   ) {}
 
@@ -42,7 +46,17 @@ export class AuthController {
 
   @Post('otp/verify')
   @HttpCode(200)
-  async verifyOtp(@Body() dto: VerifyOtpDto) {
+  async verifyOtp(@Body() dto: VerifyOtpDto, @Req() req: Request) {
+    if (dto.purpose === OtpPurpose.LOGIN) {
+      // LOGIN : valide le code ET délivre la session (27 §3, 28 §3).
+      const result = await this.loginService.login({
+        countryCode: dto.country_code,
+        phone: dto.phone,
+        code: dto.code,
+        device: this.buildDevice(dto.device, req),
+      });
+      return { ...result.tokens, user: result.user };
+    }
     const result = await this.otpService.verify({
       countryCode: dto.country_code,
       phone: dto.phone,
@@ -50,10 +64,23 @@ export class AuthController {
       purpose: dto.purpose,
       device: dto.device,
     });
-    return {
-      status: result.status,
-      ...(result.userId ? { user_id: result.userId } : {}),
-    };
+    return { status: result.status };
+  }
+
+  @Post('login')
+  @HttpCode(200)
+  async login(
+    @Body() dto: LoginDto,
+    @Req() req: Request,
+    @Headers('user-agent') userAgent?: string,
+  ) {
+    const result = await this.loginService.login({
+      countryCode: dto.country_code,
+      phone: dto.phone,
+      code: dto.code,
+      device: this.buildDevice(dto.device, req, userAgent),
+    });
+    return { ...result.tokens, user: result.user };
   }
 
   @Post('register')
@@ -83,7 +110,7 @@ export class AuthController {
   }
 
   private buildDevice(
-    device: RequestOtpDto['device'],
+    device: { session_id?: string; user_agent?: string; ip?: string } | undefined,
     req: Request,
     userAgent?: string,
   ): DeviceInfo {

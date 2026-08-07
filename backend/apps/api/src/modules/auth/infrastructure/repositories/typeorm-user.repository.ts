@@ -14,6 +14,7 @@ import {
 } from '../../application/ports/user-repository.port';
 import { OtpPurpose } from '../../domain/entities/otp-code.entity';
 import { User, UserStatus } from '../../domain/entities/user.entity';
+import { UserRole } from '../../../users/domain/entities/user-role.entity';
 import { Consent } from '../../../users/domain/entities/consent.entity';
 import { UserRoleEntity } from '../../../users/domain/entities/user-role.entity';
 import { ProfessionalProfile, ProfessionalStatus } from '../../../professionals/domain/entities/professional-profile.entity';
@@ -24,6 +25,8 @@ export class TypeOrmUserRepository implements UserRepositoryPort {
   constructor(
     @InjectRepository(User)
     private readonly repo: Repository<User>,
+    @InjectRepository(UserRoleEntity)
+    private readonly roleRepo: Repository<UserRoleEntity>,
     private readonly dataSource: DataSource,
   ) {}
 
@@ -38,6 +41,14 @@ export class TypeOrmUserRepository implements UserRepositoryPort {
 
   async findById(userId: string): Promise<User | null> {
     return this.repo.findOne({ where: { id: userId } });
+  }
+
+  async findRole(userId: string): Promise<UserRole | null> {
+    const row = await this.roleRepo.findOne({
+      where: { user_id: userId },
+      order: { granted_at: 'ASC' },
+    });
+    return row?.role ?? null;
   }
 
   async createPending(
