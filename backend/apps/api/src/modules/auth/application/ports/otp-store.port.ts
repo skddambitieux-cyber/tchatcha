@@ -38,10 +38,18 @@ export const OTP_MAX_ATTEMPTS = 3;
  */
 export interface OtpStorePort {
   saveOtp(otp: PendingOtp): Promise<void>;
-  /** Retourne l'OTP en attente pour un numéro/purpose, null s'il n'existe pas. */
+  /**
+   * Retourne l'OTP en attente pour un numéro/purpose, null s'il n'existe pas
+   * (les OTP expirés sont retournés : le service applique l'expiration —
+   * permet de distinguer OtpExpired de NoPendingOtp).
+   */
   findOtp(phone: string, purpose: OtpPurpose): Promise<PendingOtp | null>;
-  /** Marque un OTP comme utilisé (usage unique). */
-  markUsed(phone: string, purpose: OtpPurpose, usedAt: Date): Promise<void>;
+  /**
+   * Consomme l'OTP de façon atomique (usage unique). Retourne true si ce
+   * processus a posé used_at, false si l'OTP était déjà utilisé (garantit
+   * qu'une double vérification simultanée ne réussit qu'une fois).
+   */
+  consume(phone: string, purpose: OtpPurpose, usedAt: Date): Promise<boolean>;
   /** Invalide un OTP (après exhaustion ou expiration). */
   invalidate(phone: string, purpose: OtpPurpose): Promise<void>;
   /** Incrémente le compteur d'essais. Retourne le nouveau compteur. */

@@ -6,7 +6,7 @@ import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { OtpAuditRepositoryPort, OtpAuditRow } from '../../application/ports/otp-audit-repository.port';
-import { OtpCode } from '../../domain/entities/otp-code.entity';
+import { OtpCode, OtpPurpose } from '../../domain/entities/otp-code.entity';
 
 @Injectable()
 export class TypeOrmOtpAuditRepository implements OtpAuditRepositoryPort {
@@ -27,5 +27,33 @@ export class TypeOrmOtpAuditRepository implements OtpAuditRepositoryPort {
         used_at: row.usedAt,
       }),
     );
+  }
+
+  async updateAttempts(
+    phone: string,
+    purpose: OtpPurpose,
+    attempts: number,
+  ): Promise<void> {
+    const row = await this.latestFor(phone, purpose);
+    if (row) await this.repo.update(row.id, { attempts });
+  }
+
+  async markUsed(
+    phone: string,
+    purpose: OtpPurpose,
+    usedAt: Date,
+  ): Promise<void> {
+    const row = await this.latestFor(phone, purpose);
+    if (row) await this.repo.update(row.id, { used_at: usedAt });
+  }
+
+  private async latestFor(
+    phone: string,
+    purpose: OtpPurpose,
+  ): Promise<OtpCode | null> {
+    return this.repo.findOne({
+      where: { phone, purpose },
+      order: { created_at: 'DESC' },
+    });
   }
 }

@@ -7,6 +7,7 @@ import { Inject, Injectable } from '@nestjs/common';
 import { createHash, randomInt } from 'node:crypto';
 import {
   OTP_COOLDOWN_SECONDS,
+  OTP_MAX_ATTEMPTS,
   OTP_MAX_SENDS_PER_WINDOW,
   OTP_TTL_SECONDS,
   OTP_WINDOW_SECONDS,
@@ -26,7 +27,12 @@ import {
 import { OtpPurpose } from '../../domain/entities/otp-code.entity';
 import { UserStatus } from '../../domain/entities/user.entity';
 import {
+  NoPendingOtpError,
+  OtpAlreadyUsedError,
   OtpCooldownError,
+  OtpExhaustedError,
+  OtpExpiredError,
+  OtpInvalidError,
   PhoneAlreadyRegisteredError,
   PhoneInvalidError,
   PhoneLockedError,
@@ -39,9 +45,22 @@ export interface RequestOtpInput {
   purpose: OtpPurpose;
 }
 
+export interface VerifyOtpInput {
+  countryCode: string;
+  phone: string;
+  code: string;
+  purpose: OtpPurpose;
+}
+
 export interface OtpRequested {
   expiresAt: Date;
   retryAfterSeconds: number;
+}
+
+export interface OtpVerified {
+  /** Présent si purpose=LOGIN (délivrance tokens), absent pour REGISTER. */
+  userId?: string;
+  status: 'otp_verified';
 }
 
 /** Génère un code OTP à 6 chiffres via CSPRNG (node:crypto). */
@@ -151,6 +170,68 @@ export class OtpService {
       expiresAt,
       retryAfterSeconds: OTP_COOLDOWN_SECONDS,
     };
+  }
+
+  /**
+   * Vérifie le code (docs 28 §3, 29 §2.2).
+   * Ordre : verrouillage canal → OTP présent → déjà utilisé → expiré → code
+   * (3 essais max, ck_otp_attempts) → consommation atomique (usage unique).
+   */
+  async verify(input: VerifyOtpInput): Promise<OtpVerified> {
+    const phone = normalizePhone(input.phone);
+    if (!/^[0-9]{8,15}$/.test(phone)) {
+      throw new PhoneInvalidError();
+    }
+    const now = this.clock.now();
+
+    // Canal verrouillé (5 envois/15 min dépassés) → même sans OTP vérifiable.
+    const state = await this.otpStore.getSendState(phone);
+    if (state.lockedUntil && state.lockedUntil.getTime() > now.getTime()) {
+      throw new PhoneLockedError(this.secondsUntil(state.lockedUntil, now));
+    }
+
+    const otp = await this.otpStore.findOtp(phone, input.purpose);
+    if (!otp) {
+      throw new NoPendingOtpError();
+    }
+    if (otp.usedAt) {
+      throw new OtpAlreadyUsedError();
+    }
+    if (otp.expiresAt.getTime() <= now.getTime()) {
+      await this.otpStore.invalidate(phone, input.purpose);
+      throw new OtpExpiredError();
+    }
+
+    const hash = hashOtpCode(input.code);
+    if (hash !== otp.codeHash) {
+      const attempts = await this.otpStore.incrementAttempts(
+        phone,
+        input.purpose,
+      );
+      await this.otpAudit.updateAttempts(phone, input.purpose, attempts);
+      if (attempts >= OTP_MAX_ATTEMPTS) {
+        await this.otpStore.invalidate(phone, input.purpose);
+        throw new OtpExhaustedError();
+      }
+      throw new OtpInvalidError(OTP_MAX_ATTEMPTS - attempts);
+    }
+
+    // Consommation atomique : un seul verify simultané gagne (usage unique).
+    const consumed = await this.otpStore.consume(phone, input.purpose, now);
+    if (!consumed) {
+      throw new OtpAlreadyUsedError();
+    }
+    await this.otpAudit.markUsed(phone, input.purpose, now);
+
+    const user = await this.users.findByPhone(input.countryCode, phone);
+    if (user) {
+      await this.users.markOtpVerified(user.id);
+    }
+
+    if (input.purpose === OtpPurpose.LOGIN) {
+      return { userId: user?.id, status: 'otp_verified' };
+    }
+    return { status: 'otp_verified' };
   }
 
   /** Envoi avec 2 retries internes (3 tentatives au total). */

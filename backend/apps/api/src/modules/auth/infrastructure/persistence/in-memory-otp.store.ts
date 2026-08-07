@@ -31,22 +31,21 @@ export class InMemoryOtpStore implements OtpStorePort {
   ): Promise<PendingOtp | null> {
     const otp = this.otps.get(this.key(phone, purpose));
     if (!otp) return null;
-    if (otp.expiresAt.getTime() <= Date.now()) {
-      await this.invalidate(phone, purpose);
-      return null;
-    }
+    // Expiré = retourné tel quel ; l'expiration est appliquée par le service
+    // (permet de distinguer OtpExpired de NoPendingOtp).
     return { ...otp };
   }
 
-  async markUsed(
+  async consume(
     phone: string,
     purpose: OtpPurpose,
     usedAt: Date,
-  ): Promise<void> {
-    const otp = this.otps.get(this.key(phone, purpose));
-    if (otp) {
-      this.otps.set(this.key(phone, purpose), { ...otp, usedAt });
-    }
+  ): Promise<boolean> {
+    const key = this.key(phone, purpose);
+    const otp = this.otps.get(key);
+    if (!otp || otp.usedAt) return false;
+    this.otps.set(key, { ...otp, usedAt });
+    return true;
   }
 
   async invalidate(phone: string, purpose: OtpPurpose): Promise<void> {

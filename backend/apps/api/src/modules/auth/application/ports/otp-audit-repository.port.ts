@@ -17,6 +17,18 @@ export interface OtpAuditRow {
 
 export interface OtpAuditRepositoryPort {
   record(row: OtpAuditRow): Promise<void>;
+  /** Met à jour le compteur d'essais de la dernière trace du numéro/purpose. */
+  updateAttempts(
+    phone: string,
+    purpose: OtpPurpose,
+    attempts: number,
+  ): Promise<void>;
+  /** Pose used_at sur la dernière trace du numéro/purpose. */
+  markUsed(
+    phone: string,
+    purpose: OtpPurpose,
+    usedAt: Date,
+  ): Promise<void>;
 }
 
 export const OtpAuditRepositoryPortToken = 'OtpAuditRepositoryPort';
