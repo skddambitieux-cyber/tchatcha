@@ -223,3 +223,21 @@ export class SessionNotFoundError extends Error {
     this.name = 'SessionNotFoundError';
   }
 }
+
+export class UserNotFoundError extends Error {
+  readonly code = 'unauthorized';
+  readonly httpStatus = 401;
+  constructor() {
+    super('Compte introuvable');
+    this.name = 'UserNotFoundError';
+  }
+}
+
+export class AccountAnonymizedError extends Error {
+  readonly code = 'resource_unavailable';
+  readonly httpStatus = 403;
+  constructor() {
+    super('Compte anonymis\u00e9');
+    this.name = 'AccountAnonymizedError';
+  }
+}

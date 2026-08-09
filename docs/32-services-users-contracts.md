@@ -26,11 +26,13 @@ Hors périmètre 6.3.1 : modification, suppression RGPD, multi-rôles, notificat
 | Port | Méthode utilisée | Fourni par |
 |---|---|---|
 | `UserRepositoryPort` | `findById(userId)` · `findRolesById(userId)` *(dérivé de `findRole`, liste)* | `TypeOrmUserRepository` (schéma `users`) |
-| `ProfessionalProfileRepositoryPort` (adaptation locale) | `findByUserId(userId)` | adaptation `pros.profiles` (port du module `professionals` ; mapping local autorisé D-PORT-1) |
+| `ProfessionalProfileReadPort` (port local auth, D-ME-2) | `findByUserId(userId)` | `TypeOrmProfessionalProfileReader` : SQL local sur `pros.profiles` + `pros.locations`/`geo.divisions` (location_name) — **aucune classe importée du module professionals** (D-PORT-1) |
 | `ClockPort` | `now()` (non requis pour la lecture pure, réservé émissions/événements) | `SystemClock` |
 
 > Décision : l'écriture est nulle pour `/me` (lecture pure) → **aucun événement émis**, aucun `last_login_at`
 > mis à jour (déjà fait au login). Ne pas écrire en lecture (idempotence, cache possible).
+> Décision implémentation (D-ME-2) : port local `ProfessionalProfileReadPort` fourni par un adaptateur
+> auth isolé (SQL direct, pas de dépendance de classes du module professionals).
 
 ---
 

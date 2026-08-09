@@ -27,6 +27,8 @@ export interface UserRepositoryPort {
   findById(userId: string): Promise<User | null>;
   /** Rôle principal du compte (users.user_roles) — null si aucun rôle. */
   findRole(userId: string): Promise<UserRole | null>;
+  /** Tous les rôles du compte (MVP : 0-1), pour la projection `/me` (32 §2). */
+  findRolesById(userId: string): Promise<UserRole[]>;
   /** Crée un compte PENDING_OTP à la demande d'OTP REGISTER (D3). */
   createPending(
     countryCode: string,

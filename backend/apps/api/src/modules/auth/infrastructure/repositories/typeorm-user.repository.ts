@@ -51,6 +51,14 @@ export class TypeOrmUserRepository implements UserRepositoryPort {
     return row?.role ?? null;
   }
 
+  async findRolesById(userId: string): Promise<UserRole[]> {
+    const rows = await this.roleRepo.find({
+      where: { user_id: userId },
+      order: { granted_at: 'ASC' },
+    });
+    return rows.map((r) => r.role);
+  }
+
   async createPending(
     countryCode: string,
     phone: string,

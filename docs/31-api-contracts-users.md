@@ -49,7 +49,7 @@
 | `rating_count` | int | `pros.profiles.rating_count` |
 | `trust_score` | number | `pros.profiles.trust_score` |
 | `completed_jobs` | int | `pros.profiles.completed_jobs` |
-| `location_name` | string \| null | `pros.locations.label` (MVP) |
+| `location_name` | string \| null | `geo.divisions.name` via `pros.locations` (repli `address_text`) | MVP — pas de colonne `label` dans `pros.locations` |
 
 ---
 
