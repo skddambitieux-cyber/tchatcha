@@ -72,6 +72,6 @@ import { AuthExceptionsFilter } from './interface/http/filters/auth-exceptions.f
     { provide: SessionRepositoryPortToken, useClass: TypeOrmSessionRepository },
     { provide: EventPublisherPortToken, useClass: ConsoleEventPublisher },
   ],
-  exports: [TypeOrmModule],
+  exports: [TypeOrmModule, AuthGuard, TokenService],
 })
 export class AuthModule {}
