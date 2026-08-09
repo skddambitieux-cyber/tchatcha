@@ -10,6 +10,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
 import {
   ActivateCommand,
+  UpdateProfileCommand,
   UserRepositoryPort,
 } from '../../application/ports/user-repository.port';
 import { OtpPurpose } from '../../domain/entities/otp-code.entity';
@@ -18,7 +19,7 @@ import { UserRole } from '../../../users/domain/entities/user-role.entity';
 import { Consent } from '../../../users/domain/entities/consent.entity';
 import { UserRoleEntity } from '../../../users/domain/entities/user-role.entity';
 import { ProfessionalProfile, ProfessionalStatus } from '../../../professionals/domain/entities/professional-profile.entity';
-import { PhoneAlreadyActiveError } from '../../domain/errors/auth-errors';
+import { EmailAlreadyRegisteredError, PhoneAlreadyActiveError } from '../../domain/errors/auth-errors';
 
 @Injectable()
 export class TypeOrmUserRepository implements UserRepositoryPort {
@@ -137,5 +138,41 @@ export class TypeOrmUserRepository implements UserRepositoryPort {
       }
       return manager.findOne(User, { where: { id: user.id } }) as Promise<User>;
     });
+  }
+
+  async updateProfile(
+    userId: string,
+    input: UpdateProfileCommand,
+  ): Promise<User | null> {
+    try {
+      const { affected } = await this.repo
+        .createQueryBuilder()
+        .update(User)
+        .set({
+          full_name: input.fullName,
+          locale: input.locale,
+          email: input.email,
+          avatar_url: input.avatarUrl,
+          version: () => '"version" + 1',
+        })
+        .where('id = :id', { id: userId })
+        .andWhere('version = :version', { version: input.expectedVersion })
+        .andWhere('deleted_at IS NULL')
+        .execute();
+      if (!affected) {
+        return null;
+      }
+      return this.findById(userId);
+    } catch (err) {
+      // 23505 : violation de uq_users_email (06a §2) — email porté par un autre compte.
+      if (
+        err &&
+        typeof err === 'object' &&
+        (err as { driverError?: { code?: string } }).driverError?.code === '23505'
+      ) {
+        throw new EmailAlreadyRegisteredError();
+      }
+      throw err;
+    }
   }
 }

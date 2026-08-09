@@ -241,3 +241,30 @@ export class AccountAnonymizedError extends Error {
     this.name = 'AccountAnonymizedError';
   }
 }
+
+export class EmailAlreadyRegisteredError extends Error {
+  readonly code = 'email_already_registered';
+  readonly httpStatus = 409;
+  constructor() {
+    super('Email d\u00e9j\u00e0 utilis\u00e9 par un autre compte');
+    this.name = 'EmailAlreadyRegisteredError';
+  }
+}
+
+export class VersionConflictError extends Error {
+  readonly code = 'version_conflict';
+  readonly httpStatus = 409;
+  constructor() {
+    super('Le profil a \u00e9t\u00e9 modifi\u00e9 par un autre appareil');
+    this.name = 'VersionConflictError';
+  }
+}
+
+export class PendingOtpWriteError extends Error {
+  readonly code = 'state_conflict';
+  readonly httpStatus = 409;
+  constructor() {
+    super('Profil modifiable uniquement apr\u00e8s activation du compte');
+    this.name = 'PendingOtpWriteError';
+  }
+}

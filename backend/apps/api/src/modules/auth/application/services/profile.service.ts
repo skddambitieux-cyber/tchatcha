@@ -8,6 +8,7 @@ import {
   UserRepositoryPort,
   UserRepositoryPortToken,
   ActivateCommand,
+  UpdateProfileCommand,
 } from '../ports/user-repository.port';
 import {
   ProfessionalProfileReadPort,
@@ -27,8 +28,10 @@ import {
   LocalityRequiredError,
   NoPendingOtpError,
   OtpNotVerifiedError,
+  PendingOtpWriteError,
   PhoneAlreadyActiveError,
   UserNotFoundError,
+  VersionConflictError,
   ZoneRequiredError,
 } from '../../domain/errors/auth-errors';
 import { AuthTokens, DeviceInfo, UserPublic } from '../types/auth.types';
@@ -88,6 +91,8 @@ export interface UserMe {
   roles: UserRole[];
   professional: MeProfessional | null;
   deliverer: { zone: string | null; means: string | null } | null;
+  /** Verrouillage optimiste (34 §2 RF-ME-W04) — relu après chaque écriture. */
+  version: number;
 }
 
 /** Projection minimale d'un compte en inscription (E-ME-06, 30 §3.3). */
@@ -203,6 +208,72 @@ export class ProfileService {
         ? await this.mapMeProfessional(actorId)
         : null,
       deliverer: this.mapMeDeliverer(roles, user.flags),
+      version: user.version,
+    };
+  }
+
+  /**
+ * Écriture du profil `PUT /me` (6.3.2, 34 §2-3). Remplacement total des
+ * champs d'identité (RF-ME-W02), verrouillage optimiste via `version`
+ * (RF-ME-W04) : version obsolète → 409 version_conflict, email dupliqué
+ * → 409 email_already_registered (RF-ME-W05). Émet users.profile.updated.
+ */
+  async updateMe(
+    actorId: string,
+    input: UpdateProfileCommand,
+  ): Promise<UserMe> {
+    const user = await this.users.findById(actorId);
+    if (!user) {
+      throw new UserNotFoundError();
+    }
+    if (user.anonymized_at) {
+      throw new AccountAnonymizedError();
+    }
+    if (
+      user.status === UserStatus.SUSPENDED ||
+      user.status === UserStatus.BANNED
+    ) {
+      throw new AccountLockedError();
+    }
+    if (user.status === UserStatus.PENDING_OTP) {
+      throw new PendingOtpWriteError();
+    }
+
+    const updated = await this.users.updateProfile(actorId, input);
+    if (!updated) {
+      throw new VersionConflictError();
+    }
+
+    this.events.publish({
+      type: 'users.profile.updated',
+      payload: {
+        user_id: actorId,
+        full_name: updated.full_name,
+        locale: updated.locale,
+        email: updated.email,
+        avatar_url: updated.avatar_url,
+        version: updated.version,
+      },
+    });
+
+    const roles = await this.users.findRolesById(actorId);
+    return {
+      id: updated.id,
+      country_code: updated.country_code,
+      phone: updated.phone,
+      email: updated.email ?? null,
+      full_name: updated.full_name || null,
+      avatar_url: updated.avatar_url ?? null,
+      locale: updated.locale,
+      status: updated.status,
+      otp_verified_at: updated.otp_verified_at?.toISOString() ?? null,
+      created_at: updated.created_at?.toISOString() ?? '',
+      roles,
+      professional: roles.includes(UserRole.PROFESSIONAL)
+        ? await this.mapMeProfessional(actorId)
+        : null,
+      deliverer: this.mapMeDeliverer(roles, updated.flags),
+      version: updated.version,
     };
   }
 

@@ -45,6 +45,26 @@ export interface UserRepositoryPort {
    * extras par rôle. Retourne le user activé. Le rôle est verrouillé (D5).
    */
   activateRegistration(userId: string, input: ActivateCommand): Promise<User>;
+
+  /**
+   * Met à jour l'identité du compte (6.3.2, 34 §4) avec verrouillage
+   * optimiste : `WHERE id AND version = expectedVersion`, puis bump
+   * `version`. Retourne null si aucune ligne mise à jour (concurrence).
+   * Violation d'unicité email (uq_users_email) → EmailAlreadyRegisteredError.
+   */
+  updateProfile(
+    userId: string,
+    input: UpdateProfileCommand,
+  ): Promise<User | null>;
+}
+
+export interface UpdateProfileCommand {
+  fullName: string;
+  locale: string;
+  email: string | null;
+  avatarUrl: string | null;
+  /** Version lue par le client (GET /me) — verrouillage optimiste (06 §6). */
+  expectedVersion: number;
 }
 
 export const UserRepositoryPortToken = 'UserRepositoryPort';

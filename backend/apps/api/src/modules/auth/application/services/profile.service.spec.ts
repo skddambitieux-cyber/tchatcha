@@ -10,11 +10,14 @@ import {
   AccountLockedError,
   CategoryRequiredError,
   ConsentRequiredError,
+  EmailAlreadyRegisteredError,
   LocalityRequiredError,
   NoPendingOtpError,
   OtpNotVerifiedError,
+  PendingOtpWriteError,
   PhoneAlreadyActiveError,
   UserNotFoundError,
+  VersionConflictError,
   ZoneRequiredError,
 } from '../../domain/errors/auth-errors';
 import {
@@ -94,6 +97,7 @@ describe('ProfileService.completeRegistration — docs 29 §2.5', () => {
       createPending: jest.fn(),
       markOtpVerified: jest.fn(),
       updateStatus: jest.fn(),
+      updateProfile: jest.fn(),
       activateRegistration: (userId: string, input: ActivateCommand) =>
         activate(userId, input),
     };
@@ -203,6 +207,7 @@ describe('ProfileService.getMe — docs 33 §2 (lot 6.3.1)', () => {
   let findByPhone: jest.Mock;
   let findRolesById: jest.Mock;
   let findByUserId: jest.Mock;
+  let updateProfile: jest.Mock;
   let eventPublisher: { publish: jest.Mock };
 
   function makeMeUser(overrides: Record<string, unknown> = {}) {
@@ -219,6 +224,7 @@ describe('ProfileService.getMe — docs 33 §2 (lot 6.3.1)', () => {
       created_at: new Date('2026-08-07T08:00:00.000Z'),
       flags: {},
       anonymized_at: null,
+      version: 1,
       ...overrides,
     };
   }
@@ -228,6 +234,7 @@ describe('ProfileService.getMe — docs 33 §2 (lot 6.3.1)', () => {
     findRolesById = jest.fn().mockResolvedValue([]);
     findByUserId = jest.fn().mockResolvedValue(null);
     eventPublisher = { publish: jest.fn() };
+    updateProfile = jest.fn();
 
     const fakeUsers: UserRepositoryPort = {
       findByPhone,
@@ -237,6 +244,7 @@ describe('ProfileService.getMe — docs 33 §2 (lot 6.3.1)', () => {
       createPending: jest.fn(),
       markOtpVerified: jest.fn(),
       updateStatus: jest.fn(),
+      updateProfile,
       activateRegistration: jest.fn(),
     };
     const fakeProPort: ProfessionalProfileReadPort = { findByUserId };
@@ -361,5 +369,197 @@ describe('ProfileService.getMe — docs 33 §2 (lot 6.3.1)', () => {
     await expect(service.getMe('user-inconnu')).rejects.toThrow(
       UserNotFoundError,
     );
+  });
+});
+
+describe('ProfileService.updateMe — docs 34 §5 (lot 6.3.2)', () => {
+  let service: ProfileService;
+  let findByPhone: jest.Mock;
+  let findRolesById: jest.Mock;
+  let findByUserId: jest.Mock;
+  let updateProfile: jest.Mock;
+  let eventPublisher: { publish: jest.Mock };
+
+  function makeMeUser(overrides: Record<string, unknown> = {}) {
+    return {
+      id: 'user-w-1',
+      country_code: 'BJ',
+      phone: '0198000033',
+      email: 'old@exemple.bj',
+      full_name: 'Ancien nom',
+      avatar_url: 'https://s3.example/old.png',
+      locale: 'fr',
+      status: UserStatus.ACTIVE,
+      otp_verified_at: new Date('2026-08-07T08:05:00.000Z'),
+      created_at: new Date('2026-08-07T08:00:00.000Z'),
+      flags: {},
+      anonymized_at: null,
+      version: 1,
+      ...overrides,
+    };
+  }
+
+  function makeCmd(overrides: Record<string, unknown> = {}) {
+    return {
+      fullName: 'Kossi Agbo',
+      locale: 'en',
+      email: 'kossi@exemple.bj',
+      avatarUrl: 'https://s3.example/new.png',
+      expectedVersion: 1,
+      ...overrides,
+    };
+  }
+
+  beforeEach(async () => {
+    findByPhone = jest.fn();
+    findRolesById = jest.fn().mockResolvedValue([]);
+    findByUserId = jest.fn().mockResolvedValue(null);
+    updateProfile = jest.fn();
+    eventPublisher = { publish: jest.fn() };
+
+    const fakeUsers: UserRepositoryPort = {
+      findByPhone,
+      findById: findByPhone,
+      findRole: jest.fn(),
+      findRolesById,
+      createPending: jest.fn(),
+      markOtpVerified: jest.fn(),
+      updateStatus: jest.fn(),
+      updateProfile,
+      activateRegistration: jest.fn(),
+    };
+    const fakeProPort: ProfessionalProfileReadPort = { findByUserId };
+
+    const moduleRef = await Test.createTestingModule({
+      providers: [
+        ProfileService,
+        { provide: UserRepositoryPortToken, useValue: fakeUsers },
+        { provide: ProfessionalProfileReadPortToken, useValue: fakeProPort },
+        { provide: TokenService, useValue: { issuePair: jest.fn() } },
+        { provide: EventPublisherPortToken, useValue: eventPublisher },
+      ],
+    }).compile();
+
+    service = moduleRef.get(ProfileService);
+  });
+
+  it('succès → projection complète + version relue + événement publié', async () => {
+    findByPhone.mockResolvedValue(makeMeUser());
+    updateProfile.mockResolvedValue(
+      makeMeUser({
+        full_name: 'Kossi Agbo',
+        locale: 'en',
+        email: 'kossi@exemple.bj',
+        avatar_url: 'https://s3.example/new.png',
+        version: 2,
+      }),
+    );
+
+    const me = await service.updateMe('user-w-1', makeCmd());
+
+    expect(me).toMatchObject({
+      id: 'user-w-1',
+      full_name: 'Kossi Agbo',
+      locale: 'en',
+      email: 'kossi@exemple.bj',
+      avatar_url: 'https://s3.example/new.png',
+      version: 2,
+    });
+    expect(eventPublisher.publish).toHaveBeenCalledWith({
+      type: 'users.profile.updated',
+      payload: expect.objectContaining({
+        user_id: 'user-w-1',
+        full_name: 'Kossi Agbo',
+        version: 2,
+      }),
+    });
+    expect(updateProfile).toHaveBeenCalledWith('user-w-1', {
+      fullName: 'Kossi Agbo',
+      locale: 'en',
+      email: 'kossi@exemple.bj',
+      avatarUrl: 'https://s3.example/new.png',
+      expectedVersion: 1,
+    });
+  });
+
+  it('email null → effacement (projection email null)', async () => {
+    findByPhone.mockResolvedValue(makeMeUser());
+    updateProfile.mockResolvedValue(
+      makeMeUser({ email: null, version: 2 }),
+    );
+    const me = await service.updateMe('user-w-1', makeCmd({ email: null }));
+    expect(me.email).toBeNull();
+  });
+
+  it('avatar null → effacement (projection avatar_url null)', async () => {
+    findByPhone.mockResolvedValue(makeMeUser());
+    updateProfile.mockResolvedValue(
+      makeMeUser({ avatar_url: null, version: 2 }),
+    );
+    const me = await service.updateMe('user-w-1', makeCmd({ avatarUrl: null }));
+    expect(me.avatar_url).toBeNull();
+  });
+
+  it('sub inconnu → UserNotFoundError', async () => {
+    findByPhone.mockResolvedValue(null);
+    await expect(service.updateMe('inconnu', makeCmd())).rejects.toThrow(
+      UserNotFoundError,
+    );
+  });
+
+  it('SUSPENDED → AccountLockedError', async () => {
+    findByPhone.mockResolvedValue(makeMeUser({ status: UserStatus.SUSPENDED }));
+    await expect(service.updateMe('user-w-1', makeCmd())).rejects.toThrow(
+      AccountLockedError,
+    );
+  });
+
+  it('BANNED → AccountLockedError', async () => {
+    findByPhone.mockResolvedValue(makeMeUser({ status: UserStatus.BANNED }));
+    await expect(service.updateMe('user-w-1', makeCmd())).rejects.toThrow(
+      AccountLockedError,
+    );
+  });
+
+  it('anonymisé (RGPD) → AccountAnonymizedError', async () => {
+    findByPhone.mockResolvedValue(
+      makeMeUser({ anonymized_at: new Date('2026-08-08T00:00:00.000Z') }),
+    );
+    await expect(service.updateMe('user-w-1', makeCmd())).rejects.toThrow(
+      AccountAnonymizedError,
+    );
+  });
+
+  it('PENDING_OTP → PendingOtpWriteError (state_conflict)', async () => {
+    findByPhone.mockResolvedValue(
+      makeMeUser({ status: UserStatus.PENDING_OTP }),
+    );
+    await expect(service.updateMe('user-w-1', makeCmd())).rejects.toThrow(
+      PendingOtpWriteError,
+    );
+  });
+
+  it('version obsolète (port → null) → VersionConflictError', async () => {
+    findByPhone.mockResolvedValue(makeMeUser());
+    updateProfile.mockResolvedValue(null);
+    await expect(
+      service.updateMe('user-w-1', makeCmd({ expectedVersion: 0 })),
+    ).rejects.toThrow(VersionConflictError);
+  });
+
+  it('email dupliqué (port lève) → EmailAlreadyRegisteredError', async () => {
+    findByPhone.mockResolvedValue(makeMeUser());
+    updateProfile.mockRejectedValue(new EmailAlreadyRegisteredError());
+    await expect(service.updateMe('user-w-1', makeCmd())).rejects.toThrow(
+      EmailAlreadyRegisteredError,
+    );
+  });
+
+  it('échec → aucun événement publié', async () => {
+    findByPhone.mockResolvedValue(makeMeUser({ status: UserStatus.BANNED }));
+    await expect(
+      service.updateMe('user-w-1', makeCmd()),
+    ).rejects.toThrow(AccountLockedError);
+    expect(eventPublisher.publish).not.toHaveBeenCalled();
   });
 });
