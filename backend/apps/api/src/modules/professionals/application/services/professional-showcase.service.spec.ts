@@ -1,7 +1,8 @@
 /**
- * Tests unitaires ProfessionalShowcaseService — docs/35 §6 (lot 6.3.3).
- * Faux ProfessionalShowcaseReadPort (port mocké) : mapping, règles
- * RF-PW02/03 (404 non-PRO, 403), fiche minimale, filtre portfolio.
+ * Tests unitaires ProfessionalShowcaseService — docs/35 §6 (6.3.3) +
+ * docs/36 §6 (6.3.4). Ports mockés (read + write + events) : mapping,
+ * gardes RF-PW02/03, écritures (version globale W04b, catégorie W07,
+ * horaires W08, événement W11).
  */
 import { Test } from '@nestjs/testing';
 import {
@@ -9,16 +10,30 @@ import {
   ProfessionalShowcaseReadPortToken,
   ProfessionalShowcaseView,
 } from '../ports/professional-showcase-read.port';
+import {
+  ProfessionalShowcaseWritePort,
+  ProfessionalShowcaseWritePortToken,
+} from '../ports/professional-showcase-write.port';
+import { ProfessionalEventPublisherPortToken } from '../ports/event-publisher.port';
 import { ProfessionalShowcaseService } from './professional-showcase.service';
-import { ProfessionalNotFoundError } from '../../domain/errors/professionals-errors';
+import {
+  BusinessHoursInvalidError,
+  CategoryNotAssignableError,
+  CategoryNotFoundError,
+  DivisionNotFoundError,
+  ProfessionalNotFoundError,
+  ServiceInvalidError,
+  ServiceNotFoundError,
+} from '../../domain/errors/professionals-errors';
 import {
   AccountAnonymizedError,
   AccountLockedError,
   UserNotFoundError,
+  VersionConflictError,
 } from '../../../auth/domain/errors/auth-errors';
 
 const BASE_PROFILE = {
-  id: 'prof-1',
+  id: 'prof-1' as string,
   user_id: 'user-1',
   version: 1,
   business_name: 'Plomberie SOS',
@@ -41,9 +56,15 @@ const BASE_PROFILE = {
   role: 'PROFESSIONAL',
 };
 
-function makeView(overrides: Partial<ProfessionalShowcaseView> = {}) {
+function makeView(
+  profileOverrides: Partial<typeof BASE_PROFILE> = {},
+  overrides: Partial<ProfessionalShowcaseView> = {},
+): ProfessionalShowcaseView {
+  const profile = profileOverrides.id
+    ? { ...BASE_PROFILE, ...profileOverrides }
+    : { ...BASE_PROFILE, ...profileOverrides };
   return {
-    profile: { ...BASE_PROFILE },
+    profile,
     location: {
       country_code: 'BJ',
       division_id: 'div-1',
@@ -102,7 +123,31 @@ function makeView(overrides: Partial<ProfessionalShowcaseView> = {}) {
   };
 }
 
-describe('ProfessionalShowcaseService.getMe — docs 35 §6 (lot 6.3.3)', () => {
+const WRITE_COMMAND = {
+  businessName: 'Plomberie SOS',
+  headline: 'Plombier 15 ans',
+  description: 'Dépannage rapide',
+  experienceYears: 15,
+  employeesCount: 3,
+  minPrice: 5000,
+  website: 'https://plomberie-sos.bj',
+  socialLinks: { whatsapp: '22900000000' },
+  expectedVersion: 1,
+};
+
+const SERVICE_COMMAND = {
+  categoryId: 'cat-1',
+  title: 'Dépannage urgent',
+  description: 'Intervention 24 h',
+  priceFrom: 5000,
+  priceTo: 15000,
+  priceUnit: 'PER_JOB',
+  isPrimary: true,
+  sortOrder: 0,
+  expectedVersion: 1,
+};
+
+describe('ProfessionalShowcaseService — docs 35 §6 (6.3.3)', () => {
   let service: ProfessionalShowcaseService;
   let findByUserId: jest.Mock;
 
@@ -115,6 +160,23 @@ describe('ProfessionalShowcaseService.getMe — docs 35 §6 (lot 6.3.3)', () => 
       providers: [
         ProfessionalShowcaseService,
         { provide: ProfessionalShowcaseReadPortToken, useValue: fakePort },
+        {
+          provide: ProfessionalShowcaseWritePortToken,
+          useValue: {
+            updateProfile: jest.fn(),
+            createService: jest.fn(),
+            updateService: jest.fn(),
+            deleteService: jest.fn(),
+            replaceBusinessHours: jest.fn(),
+            upsertLocation: jest.fn(),
+            categoryById: jest.fn(),
+            divisionExists: jest.fn(),
+          },
+        },
+        {
+          provide: ProfessionalEventPublisherPortToken,
+          useValue: { publish: jest.fn() },
+        },
       ],
     }).compile();
 
@@ -145,13 +207,7 @@ describe('ProfessionalShowcaseService.getMe — docs 35 §6 (lot 6.3.3)', () => 
 
   it('fiche minimale (aucun extra) → lists vides, nulls apaisés (RF-PW06)', async () => {
     findByUserId.mockResolvedValue(
-      makeView({
-        location: null,
-        reputation: null,
-        services: [],
-        business_hours: [],
-        portfolio: [],
-      }),
+      makeView({}, { location: null, reputation: null, services: [], business_hours: [], portfolio: [] }),
     );
     const me = await service.getMe('user-1');
     expect(me.location).toBeNull();
@@ -163,18 +219,21 @@ describe('ProfessionalShowcaseService.getMe — docs 35 §6 (lot 6.3.3)', () => 
 
   it('location_name = division_name sinon address_text (RF-PW04)', async () => {
     findByUserId.mockResolvedValue(
-      makeView({
-        location: {
-          country_code: 'BJ',
-          division_id: null,
-          division_name: null,
-          location_name: 'Rue des Artisans',
-          lat: null,
-          lon: null,
-          service_radius_km: 5,
-          address_text: 'Rue des Artisans',
+      makeView(
+        {},
+        {
+          location: {
+            country_code: 'BJ',
+            division_id: null,
+            division_name: null,
+            location_name: 'Rue des Artisans',
+            lat: null,
+            lon: null,
+            service_radius_km: 5,
+            address_text: 'Rue des Artisans',
+          },
         },
-      }),
+      ),
     );
     const me = await service.getMe('user-1');
     expect(me.location?.location_name).toBe('Rue des Artisans');
@@ -182,14 +241,10 @@ describe('ProfessionalShowcaseService.getMe — docs 35 §6 (lot 6.3.3)', () => 
 
   it('role ≠ PROFESSIONAL → ProfessionalNotFoundError (RF-PW02)', async () => {
     findByUserId.mockResolvedValue(
-      makeView({
-        profile: { ...BASE_PROFILE, role: 'CLIENT', id: undefined },
-        services: [],
-        business_hours: [],
-        portfolio: [],
-        location: null,
-        reputation: null,
-      }),
+      makeView(
+        { role: 'CLIENT' },
+        { location: null, reputation: null, services: [], business_hours: [], portfolio: [] },
+      ),
     );
     await expect(service.getMe('user-1')).rejects.toThrow(
       ProfessionalNotFoundError,
@@ -198,12 +253,10 @@ describe('ProfessionalShowcaseService.getMe — docs 35 §6 (lot 6.3.3)', () => 
 
   it('rôle PRO mais fiche absente → ProfessionalNotFoundError (RF-PW02)', async () => {
     findByUserId.mockResolvedValue(
-      makeView({
-        profile: { ...BASE_PROFILE, id: undefined },
-        services: [],
-        business_hours: [],
-        portfolio: [],
-      }),
+      makeView(
+        { id: undefined },
+        { location: null, reputation: null, services: [], business_hours: [], portfolio: [] },
+      ),
     );
     await expect(service.getMe('user-1')).rejects.toThrow(
       ProfessionalNotFoundError,
@@ -211,31 +264,18 @@ describe('ProfessionalShowcaseService.getMe — docs 35 §6 (lot 6.3.3)', () => 
   });
 
   it('compte SUSPENDED → AccountLockedError (RF-PW03)', async () => {
-    findByUserId.mockResolvedValue(
-      makeView({
-        profile: { ...BASE_PROFILE, user_status: 'SUSPENDED' },
-      }),
-    );
+    findByUserId.mockResolvedValue(makeView({ user_status: 'SUSPENDED' }));
     await expect(service.getMe('user-1')).rejects.toThrow(AccountLockedError);
   });
 
   it('compte BANNED → AccountLockedError (RF-PW03)', async () => {
-    findByUserId.mockResolvedValue(
-      makeView({
-        profile: { ...BASE_PROFILE, user_status: 'BANNED' },
-      }),
-    );
+    findByUserId.mockResolvedValue(makeView({ user_status: 'BANNED' }));
     await expect(service.getMe('user-1')).rejects.toThrow(AccountLockedError);
   });
 
   it('compte anonymisé → AccountAnonymizedError (RF-PW03)', async () => {
     findByUserId.mockResolvedValue(
-      makeView({
-        profile: {
-          ...BASE_PROFILE,
-          anonymized_at: new Date('2026-08-08T00:00:00.000Z'),
-        },
-      }),
+      makeView({ anonymized_at: new Date('2026-08-08T00:00:00.000Z') }),
     );
     await expect(service.getMe('user-1')).rejects.toThrow(
       AccountAnonymizedError,
@@ -243,16 +283,314 @@ describe('ProfessionalShowcaseService.getMe — docs 35 §6 (lot 6.3.3)', () => 
   });
 
   it('fiche SUSPENDED → AccountLockedError (RF-PW03, SCR-011)', async () => {
-    findByUserId.mockResolvedValue(
-      makeView({
-        profile: { ...BASE_PROFILE, status: 'SUSPENDED' },
-      }),
-    );
+    findByUserId.mockResolvedValue(makeView({ status: 'SUSPENDED' }));
     await expect(service.getMe('user-1')).rejects.toThrow(AccountLockedError);
   });
 
   it('compte inconnu (view null) → UserNotFoundError (pas de fuite)', async () => {
     findByUserId.mockResolvedValue(null);
     await expect(service.getMe('inconnu')).rejects.toThrow(UserNotFoundError);
+  });
+});
+
+describe('ProfessionalShowcaseService — docs 36 §6 (6.3.4, écritures)', () => {
+  let service: ProfessionalShowcaseService;
+  let findByUserId: jest.Mock;
+  let writer: {
+    updateProfile: jest.Mock;
+    createService: jest.Mock;
+    updateService: jest.Mock;
+    deleteService: jest.Mock;
+    replaceBusinessHours: jest.Mock;
+    upsertLocation: jest.Mock;
+    categoryById: jest.Mock;
+    divisionExists: jest.Mock;
+  };
+  let publish: jest.Mock;
+
+  beforeEach(async () => {
+    findByUserId = jest.fn();
+    writer = {
+      updateProfile: jest.fn(),
+      createService: jest.fn(),
+      updateService: jest.fn(),
+      deleteService: jest.fn(),
+      replaceBusinessHours: jest.fn(),
+      upsertLocation: jest.fn(),
+      categoryById: jest.fn(),
+      divisionExists: jest.fn(),
+    };
+    publish = jest.fn();
+
+    const fakeRead: ProfessionalShowcaseReadPort = { findByUserId };
+    const fakeWrite = writer as unknown as ProfessionalShowcaseWritePort;
+
+    const moduleRef = await Test.createTestingModule({
+      providers: [
+        ProfessionalShowcaseService,
+        { provide: ProfessionalShowcaseReadPortToken, useValue: fakeRead },
+        { provide: ProfessionalShowcaseWritePortToken, useValue: fakeWrite },
+        {
+          provide: ProfessionalEventPublisherPortToken,
+          useValue: { publish },
+        },
+      ],
+    }).compile();
+
+    service = moduleRef.get(ProfessionalShowcaseService);
+  });
+
+  it('updateMe OK → écriture avec expectedVersion, événement, projection relue', async () => {
+    findByUserId.mockResolvedValue(makeView());
+    writer.updateProfile.mockResolvedValue(true);
+
+    const me = await service.updateMe('user-1', WRITE_COMMAND);
+
+    expect(writer.updateProfile).toHaveBeenCalledWith('user-1', WRITE_COMMAND);
+    expect(publish).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'pros.profile.updated',
+        payload: expect.objectContaining({
+          professional_id: 'prof-1',
+          user_id: 'user-1',
+          version: 2,
+        }),
+      }),
+    );
+    expect(me.business_name).toBe('Plomberie SOS');
+  });
+
+  it('updateMe version obsolète → VersionConflictError, pas d’événement', async () => {
+    findByUserId.mockResolvedValue(makeView());
+    writer.updateProfile.mockResolvedValue(false);
+
+    await expect(
+      service.updateMe('user-1', WRITE_COMMAND),
+    ).rejects.toThrow(VersionConflictError);
+    expect(publish).not.toHaveBeenCalled();
+  });
+
+  it('updateMe non-PRO → ProfessionalNotFoundError, writer jamais appelé', async () => {
+    findByUserId.mockResolvedValue(
+      makeView({ role: 'CLIENT' }, { location: null, reputation: null, services: [], business_hours: [], portfolio: [] }),
+    );
+
+    await expect(
+      service.updateMe('user-1', WRITE_COMMAND),
+    ).rejects.toThrow(ProfessionalNotFoundError);
+    expect(writer.updateProfile).not.toHaveBeenCalled();
+  });
+
+  it('createService catégorie inconnue → CategoryNotFoundError (RF-PW-W07)', async () => {
+    findByUserId.mockResolvedValue(makeView());
+    writer.categoryById.mockResolvedValue(null);
+
+    await expect(
+      service.createService('user-1', SERVICE_COMMAND),
+    ).rejects.toThrow(CategoryNotFoundError);
+    expect(writer.createService).not.toHaveBeenCalled();
+  });
+
+  it('createService catégorie racine → CategoryNotAssignableError (CAT-001)', async () => {
+    findByUserId.mockResolvedValue(makeView());
+    writer.categoryById.mockResolvedValue({
+      id: 'cat-root',
+      parentId: null,
+      active: true,
+    });
+
+    await expect(
+      service.createService('user-1', SERVICE_COMMAND),
+    ).rejects.toThrow(CategoryNotAssignableError);
+  });
+
+  it('createService catégorie inactive → CategoryNotAssignableError (CAT-002)', async () => {
+    findByUserId.mockResolvedValue(makeView());
+    writer.categoryById.mockResolvedValue({
+      id: 'cat-1',
+      parentId: 'cat-root',
+      active: false,
+    });
+
+    await expect(
+      service.createService('user-1', SERVICE_COMMAND),
+    ).rejects.toThrow(CategoryNotAssignableError);
+  });
+
+  it('createService price_to < price_from → ServiceInvalidError (RF-PW-W05)', async () => {
+    findByUserId.mockResolvedValue(makeView());
+    writer.categoryById.mockResolvedValue({
+      id: 'cat-1',
+      parentId: 'cat-root',
+      active: true,
+    });
+
+    await expect(
+      service.createService('user-1', {
+        ...SERVICE_COMMAND,
+        priceFrom: 10000,
+        priceTo: 5000,
+      }),
+    ).rejects.toThrow(ServiceInvalidError);
+  });
+
+  it('createService OK → événement services + projection', async () => {
+    findByUserId.mockResolvedValue(makeView());
+    writer.categoryById.mockResolvedValue({
+      id: 'cat-1',
+      parentId: 'cat-root',
+      active: true,
+    });
+    writer.createService.mockResolvedValue(true);
+
+    const me = await service.createService('user-1', SERVICE_COMMAND);
+
+    expect(writer.createService).toHaveBeenCalledWith('user-1', SERVICE_COMMAND);
+    expect(publish).toHaveBeenCalledWith(
+      expect.objectContaining({
+        payload: expect.objectContaining({ fields: ['services'] }),
+      }),
+    );
+    expect(me.version).toBe(1);
+  });
+
+  it('updateService service absent → ServiceNotFoundError propagé', async () => {
+    findByUserId.mockResolvedValue(makeView());
+    writer.categoryById.mockResolvedValue({
+      id: 'cat-1',
+      parentId: 'cat-root',
+      active: true,
+    });
+    writer.updateService.mockRejectedValue(new ServiceNotFoundError());
+
+    await expect(
+      service.updateService('user-1', 'svc-999', SERVICE_COMMAND),
+    ).rejects.toThrow(ServiceNotFoundError);
+    expect(publish).not.toHaveBeenCalled();
+  });
+
+  it('deleteService OK → événement, version = expected + 1', async () => {
+    findByUserId.mockResolvedValue(makeView());
+    writer.deleteService.mockResolvedValue(true);
+
+    await service.deleteService('user-1', 'svc-1', 1);
+
+    expect(writer.deleteService).toHaveBeenCalledWith('user-1', 'svc-1', 1);
+    expect(publish).toHaveBeenCalledWith(
+      expect.objectContaining({
+        payload: expect.objectContaining({
+          version: 2,
+          fields: ['services'],
+        }),
+      }),
+    );
+  });
+
+  it('deleteService version obsolète → VersionConflictError', async () => {
+    findByUserId.mockResolvedValue(makeView());
+    writer.deleteService.mockResolvedValue(false);
+
+    await expect(
+      service.deleteService('user-1', 'svc-1', 1),
+    ).rejects.toThrow(VersionConflictError);
+    expect(publish).not.toHaveBeenCalled();
+  });
+
+  it('replaceBusinessHours weekday doublon → BusinessHoursInvalidError (W08)', async () => {
+    findByUserId.mockResolvedValue(makeView());
+
+    await expect(
+      service.replaceBusinessHours(
+        'user-1',
+        [
+          { weekday: 1, openAt: '08:00:00', closeAt: '18:00:00', closed: false },
+          { weekday: 1, openAt: '10:00:00', closeAt: '12:00:00', closed: false },
+        ],
+        1,
+      ),
+    ).rejects.toThrow(BusinessHoursInvalidError);
+    expect(writer.replaceBusinessHours).not.toHaveBeenCalled();
+  });
+
+  it('replaceBusinessHours close ≤ open → BusinessHoursInvalidError (W08)', async () => {
+    findByUserId.mockResolvedValue(makeView());
+
+    await expect(
+      service.replaceBusinessHours(
+        'user-1',
+        [{ weekday: 1, openAt: '18:00:00', closeAt: '08:00:00', closed: false }],
+        1,
+      ),
+    ).rejects.toThrow(BusinessHoursInvalidError);
+  });
+
+  it('replaceBusinessHours > 7 lignes → BusinessHoursInvalidError (W08)', async () => {
+    findByUserId.mockResolvedValue(makeView());
+    const hours = Array.from({ length: 8 }, (_, i) => ({
+      weekday: i + 1,
+      openAt: '08:00:00',
+      closeAt: '18:00:00',
+      closed: false,
+    }));
+
+    await expect(
+      service.replaceBusinessHours('user-1', hours, 1),
+    ).rejects.toThrow(BusinessHoursInvalidError);
+  });
+
+  it('replaceBusinessHours OK → appel writer + événement business_hours', async () => {
+    findByUserId.mockResolvedValue(makeView());
+    writer.replaceBusinessHours.mockResolvedValue(true);
+    const hours = [
+      { weekday: 1, openAt: '08:00:00', closeAt: '18:00:00', closed: false },
+      { weekday: 6, openAt: '10:00:00', closeAt: '14:00:00', closed: true },
+    ];
+
+    await service.replaceBusinessHours('user-1', hours, 1);
+
+    expect(writer.replaceBusinessHours).toHaveBeenCalledWith('user-1', hours, 1);
+    expect(publish).toHaveBeenCalledWith(
+      expect.objectContaining({
+        payload: expect.objectContaining({ fields: ['business_hours'] }),
+      }),
+    );
+  });
+
+  it('upsertLocation division inexistante → DivisionNotFoundError (RF-PW-W09)', async () => {
+    findByUserId.mockResolvedValue(makeView());
+    writer.divisionExists.mockResolvedValue(false);
+
+    await expect(
+      service.upsertLocation('user-1', {
+        lat: 6.4,
+        lon: 2.35,
+        divisionId: 'div-999',
+        serviceRadiusKm: 10,
+        addressText: 'Calavi',
+        expectedVersion: 1,
+      }),
+    ).rejects.toThrow(DivisionNotFoundError);
+    expect(writer.upsertLocation).not.toHaveBeenCalled();
+  });
+
+  it('upsertLocation OK (sans division) → événement location', async () => {
+    findByUserId.mockResolvedValue(makeView());
+    writer.upsertLocation.mockResolvedValue(true);
+
+    await service.upsertLocation('user-1', {
+      lat: 6.4,
+      lon: 2.35,
+      divisionId: null,
+      serviceRadiusKm: 10,
+      addressText: 'Calavi',
+      expectedVersion: 1,
+    });
+
+    expect(writer.upsertLocation).toHaveBeenCalled();
+    expect(publish).toHaveBeenCalledWith(
+      expect.objectContaining({
+        payload: expect.objectContaining({ fields: ['location'] }),
+      }),
+    );
   });
 });
