@@ -22,6 +22,10 @@ interface ProfileRow {
   trust_score: number;
   completed_jobs: number;
   location_name: string | null;
+  role: string | null;
+  user_status: string;
+  anonymized_at: Date | null;
+  country_code: string;
 }
 
 @Injectable()
@@ -39,10 +43,16 @@ export class TypeOrmProfessionalProfileReader implements ProfessionalProfileRead
               p.rating_count,
               p.trust_score,
               p.completed_jobs,
-              COALESCE(d.name, l.address_text) AS location_name
+              COALESCE(d.name, l.address_text) AS location_name,
+              r.role,
+              u.status AS user_status,
+              u.anonymized_at,
+              p.country_code
          FROM pros.profiles p
          LEFT JOIN pros.locations l ON l.professional_id = p.id
          LEFT JOIN geo.divisions d   ON d.id = l.division_id
+         JOIN users.users u          ON u.id = p.user_id
+         LEFT JOIN users.user_roles r ON r.user_id = u.id
         WHERE p.user_id = $1
         LIMIT 1`,
       [userId],
@@ -62,6 +72,10 @@ export class TypeOrmProfessionalProfileReader implements ProfessionalProfileRead
       trust_score: Number(row.trust_score),
       completed_jobs: Number(row.completed_jobs),
       location_name: row.location_name ?? null,
+      role: row.role ?? null,
+      user_status: row.user_status,
+      anonymized_at: row.anonymized_at ? new Date(row.anonymized_at) : null,
+      country_code: row.country_code,
     };
   }
 }

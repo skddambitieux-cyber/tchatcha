@@ -8,6 +8,8 @@
 import { Injectable } from '@nestjs/common';
 import { DataSource } from 'typeorm';
 import {
+  PortfolioPage,
+  PortfolioPageItem,
   ProfessionalShowcaseReadPort,
   ProfessionalShowcaseView,
   ShowcaseBusinessHour,
@@ -217,6 +219,49 @@ export class TypeOrmProfessionalShowcaseReader
       height: r.height != null ? Number(r.height) : null,
       sort_order: Number(r.sort_order),
     }));
+  }
+
+  /** GET /professionals/me/portfolio (37 RF-PW-P04) — pagination offset. */
+  async findPortfolio(
+    userId: string,
+    page: number,
+    limit: number,
+  ): Promise<PortfolioPage> {
+    const ownerSql = `(SELECT id FROM pros.profiles WHERE user_id = $1)`;
+    const whereSql = `owner_type = 'PROFESSIONAL'
+          AND owner_id = ${ownerSql}
+          AND purpose IN ('PORTFOLIO', 'BEFORE_AFTER')
+          AND status = 'READY'
+          AND deleted_at IS NULL`;
+    const totalRows = await this.dataSource.query(
+      `SELECT count(*)::int AS n FROM media.files WHERE ${whereSql}`,
+      [userId],
+    );
+    const total = Number(totalRows[0].n);
+    const offset = (page - 1) * limit;
+    const rows = await this.dataSource.query(
+      `SELECT id, url, media_type, purpose, mime_type, size_bytes,
+              width, height, duration_sec, sort_order, created_at
+         FROM media.files
+        WHERE ${whereSql}
+        ORDER BY sort_order ASC, created_at ASC, id ASC
+        LIMIT $2 OFFSET $3`,
+      [userId, limit, offset],
+    );
+    const items: PortfolioPageItem[] = rows.map((r: Record<string, unknown>) => ({
+      id: r.id,
+      url: r.url,
+      media_type: r.media_type,
+      purpose: r.purpose,
+      mime_type: r.mime_type,
+      size_bytes: Number(r.size_bytes),
+      width: r.width != null ? Number(r.width) : null,
+      height: r.height != null ? Number(r.height) : null,
+      duration_sec: r.duration_sec != null ? Number(r.duration_sec) : null,
+      sort_order: Number(r.sort_order),
+      created_at: new Date(r.created_at as string).toISOString(),
+    }));
+    return { items, page, limit, total };
   }
 
   /** pros.locations + geo.divisions — point en degrés, 6 décimales (RF-PW07). */

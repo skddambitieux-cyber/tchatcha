@@ -1,12 +1,19 @@
 /**
  * TCHATCHA — Configuration d'environnement validée.
- * Source : 17-infrastructure.md, 15-securite.md. Valeurs : `.env.example`.
+ * Source : 17-infrastructure.md, 15-securite.md, 37-cadrage-users-lot-6-3-5a.md.
+ * Valeurs : `.env.example`. Les variables S3 sont optionnelles avec défauts dev
+ * (MinIO local) ; le bucket manquant est détecté au runtime (presign).
  */
 import {
+  IsIn,
+  IsInt,
   IsNotEmpty,
   IsOptional,
   IsString,
+  IsUrl,
+  Min,
 } from 'class-validator';
+import { Type } from 'class-transformer';
 
 export class EnvironmentVariables {
   @IsString()
@@ -31,15 +38,43 @@ export class EnvironmentVariables {
   @IsOptional()
   JWT_REFRESH_SECRET?: string;
 
-  @IsString()
   @IsOptional()
-  S3_ENDPOINT?: string;
+  @IsUrl({ require_tld: false })
+  S3_ENDPOINT = 'http://localhost:9000';
 
-  @IsString()
   @IsOptional()
-  S3_ACCESS_KEY_ID?: string;
+  @IsString()
+  S3_REGION = 'auto';
 
-  @IsString()
   @IsOptional()
+  @IsString()
+  S3_ACCESS_KEY_ID = 'minioadmin';
+
+  @IsOptional()
+  @IsString()
   S3_SECRET_ACCESS_KEY?: string;
+
+  @IsOptional()
+  @IsString()
+  S3_BUCKET_PUBLIC = 'tchatcha';
+
+  @IsOptional()
+  @IsString()
+  S3_BUCKET_PRIVATE = 'tchatcha-private';
+
+  @IsOptional()
+  @IsIn(['true', 'false'])
+  S3_FORCE_PATH_STYLE = 'true';
+
+  /** Durée de validité des URLs présignées en secondes (RF-MD-04, défaut 900). */
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(60)
+  S3_PRESIGN_TTL_SECONDS = 900;
+
+  /** URL publique du bucket (MinIO : {endpoint}/{bucket} ; R2 : domaine CDN). */
+  @IsOptional()
+  @IsString()
+  S3_PUBLIC_URL_BASE?: string;
 }

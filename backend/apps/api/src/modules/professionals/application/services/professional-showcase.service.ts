@@ -16,12 +16,15 @@ import {
 import type {
   BusinessHourInput,
   LocationCommand,
+  PortfolioItemCommand,
   ProfessionalShowcaseWritePort,
   ServiceCommand,
   UpdateShowcaseCommand,
 } from '../ports/professional-showcase-write.port';
 import { ProfessionalEventPublisherPortToken } from '../ports/event-publisher.port';
 import type { ProfessionalEventPublisherPort } from '../ports/event-publisher.port';
+import type { PortfolioPage } from '../ports/professional-showcase-read.port';
+import { MediaFileService } from '../../../media/application/media-file.service';
 import {
   BusinessHoursInvalidError,
   CategoryNotAssignableError,
@@ -134,6 +137,7 @@ export class ProfessionalShowcaseService {
     private readonly writer: ProfessionalShowcaseWritePort,
     @Inject(ProfessionalEventPublisherPortToken)
     private readonly events: ProfessionalEventPublisherPort,
+    private readonly media: MediaFileService,
   ) {}
 
   async getMe(userId: string): Promise<ProfessionalMeResponse> {
@@ -348,6 +352,97 @@ export class ProfessionalShowcaseService {
       },
     });
     return this.getMe(userId);
+  }
+
+  /**
+   * POST /professionals/me/portfolio/:id/confirm (37 RF-PW-P01).
+   * HEAD S3 d'abord (410/422), puis bump + READY dans la même transaction.
+   */
+  async confirmPortfolio(
+    userId: string,
+    mediaId: string,
+    expectedVersion: number,
+  ): Promise<ProfessionalMeResponse> {
+    const view = await this.assertWritable(userId);
+    await this.media.verifyForConfirm(userId, mediaId);
+    const ok = await this.writer.confirmPortfolioItem(
+      userId,
+      mediaId,
+      expectedVersion,
+    );
+    if (!ok) {
+      throw new VersionConflictError();
+    }
+    this.publishPortfolioEvent(view.profile.id, userId, expectedVersion + 1);
+    return this.getMe(userId);
+  }
+
+  /** PUT /professionals/me/portfolio/:id (37 RF-PW-P02) — reorder/purpose. */
+  async updatePortfolio(
+    userId: string,
+    mediaId: string,
+    cmd: PortfolioItemCommand,
+  ): Promise<ProfessionalMeResponse> {
+    const view = await this.assertWritable(userId);
+    const ok = await this.writer.updatePortfolioItem(userId, mediaId, cmd);
+    if (!ok) {
+      throw new VersionConflictError();
+    }
+    this.publishPortfolioEvent(view.profile.id, userId, cmd.expectedVersion + 1);
+    return this.getMe(userId);
+  }
+
+  /** DELETE /professionals/me/portfolio/:id (37 RF-PW-P03) — soft + objet. */
+  async deletePortfolio(
+    userId: string,
+    mediaId: string,
+    expectedVersion: number,
+  ): Promise<ProfessionalMeResponse> {
+    const view = await this.assertWritable(userId);
+    const result = await this.writer.deletePortfolioItem(
+      userId,
+      mediaId,
+      expectedVersion,
+    );
+    if (!result) {
+      throw new VersionConflictError();
+    }
+    // Suppression de l'objet après commit : best-effort (la ligne est déjà
+    // retirée de la vitrine ; l'objet orphelin reste sur TTL du bucket).
+    try {
+      await this.media.deleteObject(result.s3Key);
+    } catch {
+      // silencieux : suppression douce déjà validée.
+    }
+    this.publishPortfolioEvent(view.profile.id, userId, expectedVersion + 1);
+    return this.getMe(userId);
+  }
+
+  /** GET /professionals/me/portfolio (37 RF-PW-P04) — pagination offset. */
+  async listPortfolio(
+    userId: string,
+    page: number,
+    limit: number,
+  ): Promise<PortfolioPage> {
+    await this.assertWritable(userId);
+    return this.showcase.findPortfolio(userId, page, limit);
+  }
+
+  /** Événement pros.profile.updated — pattern 6.3.4 (RF-PW-W11). */
+  private publishPortfolioEvent(
+    professionalId: string,
+    userId: string,
+    version: number,
+  ): void {
+    this.events.publish({
+      type: 'pros.profile.updated',
+      payload: {
+        professional_id: professionalId,
+        user_id: userId,
+        version,
+        fields: ['portfolio'],
+      },
+    });
   }
 
   /** Gardes RF-PW-W02/W03 (404/403), retourne le view pour la projection. */

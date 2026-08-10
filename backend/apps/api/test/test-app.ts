@@ -10,17 +10,21 @@ import { AppModule } from '../src/app.module';
 import { DatabaseModule } from '../src/database/database.module';
 import { TestDatabaseModule } from './database-test.module';
 import { TestSmsSpy } from './sms-spy';
+import { InMemoryStorage } from './in-memory-storage';
 import { OtpSenderPortToken } from '../src/modules/auth/application/ports/otp-sender.port';
+import { StoragePortToken } from '../src/modules/media/domain/ports/storage.port';
 
 export interface TestApp {
   app: INestApplication;
   http: ReturnType<typeof request>;
   sms: TestSmsSpy;
+  storage: InMemoryStorage;
   close: () => Promise<void>;
 }
 
 export async function createTestApp(): Promise<TestApp> {
   const sms = new TestSmsSpy();
+  const storage = new InMemoryStorage();
   const moduleRef = await Test.createTestingModule({
     imports: [AppModule],
   })
@@ -28,6 +32,8 @@ export async function createTestApp(): Promise<TestApp> {
     .useModule(TestDatabaseModule)
     .overrideProvider(OtpSenderPortToken)
     .useValue(sms)
+    .overrideProvider(StoragePortToken)
+    .useValue(storage)
     .compile();
 
   const app = moduleRef.createNestApplication();
@@ -47,6 +53,7 @@ export async function createTestApp(): Promise<TestApp> {
     app,
     http,
     sms,
+    storage,
     close: () => app.close(),
   };
 }

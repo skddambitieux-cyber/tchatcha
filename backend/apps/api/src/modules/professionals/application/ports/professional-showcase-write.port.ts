@@ -55,6 +55,18 @@ export interface CategoryReference {
   active: boolean;
 }
 
+/** Commande portfolio (37 RF-PW-P02) : déplacement relatif + purpose. */
+export interface PortfolioItemCommand {
+  purpose?: 'PORTFOLIO' | 'BEFORE_AFTER';
+  sortOrder?: number;
+  expectedVersion: number;
+}
+
+/** Résultat DELETE portfolio : clé S3 pour suppression de l'objet (RF-PW-P03). */
+export interface DeletePortfolioResult {
+  s3Key: string;
+}
+
 export interface ProfessionalShowcaseWritePort {
   updateProfile(
     userId: string,
@@ -79,6 +91,40 @@ export interface ProfessionalShowcaseWritePort {
   upsertLocation(userId: string, cmd: LocationCommand): Promise<boolean>;
   categoryById(categoryId: string): Promise<CategoryReference | null>;
   divisionExists(divisionId: string): Promise<boolean>;
+
+  /**
+   * Confirm portfolio (37 RF-PW-P01) : bump version + PROCESSING → READY,
+   * sort_order = fin de liste. Le HEAD S3 a déjà été fait par le service
+   * (verifyForConfirm). false = version obsolète (409) ; MediaNotFoundError
+   * si la ligne n'est plus PROCESSING (race, 404).
+   */
+  confirmPortfolioItem(
+    userId: string,
+    mediaId: string,
+    expectedVersion: number,
+  ): Promise<boolean>;
+
+  /**
+   * Update portfolio (37 RF-PW-P02) : bump + purpose/sort_order (déplacement
+   * relatif, séquence contiguë). false = version obsolète ; MediaNotFoundError
+   * si la ligne READY n'existe pas.
+   */
+  updatePortfolioItem(
+    userId: string,
+    mediaId: string,
+    cmd: PortfolioItemCommand,
+  ): Promise<boolean>;
+
+  /**
+   * Delete portfolio (37 RF-PW-P03) : bump + soft delete (deleted_at),
+   * renvoie la clé S3 pour suppression de l'objet après commit.
+   * null = version obsolète (409) ; MediaNotFoundError si la ligne n'existe pas.
+   */
+  deletePortfolioItem(
+    userId: string,
+    mediaId: string,
+    expectedVersion: number,
+  ): Promise<DeletePortfolioResult | null>;
 }
 
 export const ProfessionalShowcaseWritePortToken =

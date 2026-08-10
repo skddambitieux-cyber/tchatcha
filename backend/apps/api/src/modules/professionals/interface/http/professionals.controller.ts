@@ -10,6 +10,7 @@ import {
   Controller,
   Delete,
   Get,
+  HttpCode,
   Param,
   Post,
   Put,
@@ -17,6 +18,7 @@ import {
 } from '@nestjs/common';
 import { AuthGuard } from '../../../auth/interface/http/guards/auth.guard';
 import { CurrentUser } from '../../../auth/interface/http/decorators/current-user.decorator';
+import { Query } from '@nestjs/common';
 import { UserNotFoundError } from '../../../auth/domain/errors/auth-errors';
 import { ProfessionalShowcaseService } from '../../application/services/professional-showcase.service';
 import { UpdateShowcaseDto } from './dto/update-showcase.dto';
@@ -24,6 +26,11 @@ import { ServiceDto } from './dto/service.dto';
 import { DeleteServiceDto } from './dto/delete-service.dto';
 import { BusinessHoursDto } from './dto/business-hours.dto';
 import { LocationDto } from './dto/location.dto';
+import {
+  ConfirmPortfolioDto,
+  PortfolioQueryDto,
+  UpdatePortfolioDto,
+} from './dto/portfolio.dto';
 
 @Controller('professionals')
 export class ProfessionalsController {
@@ -144,6 +151,66 @@ export class ProfessionalsController {
       addressText: dto.address_text,
       expectedVersion: dto.version,
     });
+  }
+
+  /** POST /professionals/me/portfolio/:id/confirm — READY (37 RF-PW-P01, 200). */
+  @Post('me/portfolio/:id/confirm')
+  @HttpCode(200)
+  @UseGuards(AuthGuard)
+  confirmPortfolio(
+    @CurrentUser() userId?: string,
+    @Param('id') id?: string,
+    @Body() dto: ConfirmPortfolioDto = new ConfirmPortfolioDto(),
+  ) {
+    if (!userId || !id) {
+      throw new UserNotFoundError();
+    }
+    return this.showcaseService.confirmPortfolio(userId, id, dto.version);
+  }
+
+  /** PUT /professionals/me/portfolio/:id — reorder/purpose (37 RF-PW-P02). */
+  @Put('me/portfolio/:id')
+  @UseGuards(AuthGuard)
+  updatePortfolio(
+    @CurrentUser() userId?: string,
+    @Param('id') id?: string,
+    @Body() dto: UpdatePortfolioDto = new UpdatePortfolioDto(),
+  ) {
+    if (!userId || !id) {
+      throw new UserNotFoundError();
+    }
+    return this.showcaseService.updatePortfolio(userId, id, {
+      purpose: dto.purpose,
+      sortOrder: dto.sort_order,
+      expectedVersion: dto.version,
+    });
+  }
+
+  /** DELETE /professionals/me/portfolio/:id — soft + objet S3 (37 RF-PW-P03). */
+  @Delete('me/portfolio/:id')
+  @UseGuards(AuthGuard)
+  deletePortfolio(
+    @CurrentUser() userId?: string,
+    @Param('id') id?: string,
+    @Body() dto: ConfirmPortfolioDto = new ConfirmPortfolioDto(),
+  ) {
+    if (!userId || !id) {
+      throw new UserNotFoundError();
+    }
+    return this.showcaseService.deletePortfolio(userId, id, dto.version);
+  }
+
+  /** GET /professionals/me/portfolio — pagination offset (37 RF-PW-P04). */
+  @Get('me/portfolio')
+  @UseGuards(AuthGuard)
+  listPortfolio(
+    @CurrentUser() userId?: string,
+    @Query() query: PortfolioQueryDto = new PortfolioQueryDto(),
+  ) {
+    if (!userId) {
+      throw new UserNotFoundError();
+    }
+    return this.showcaseService.listPortfolio(userId, query.page, query.limit);
   }
 
   private toServiceCommand(dto: ServiceDto) {

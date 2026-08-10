@@ -15,6 +15,7 @@ import {
   ProfessionalShowcaseWritePortToken,
 } from '../ports/professional-showcase-write.port';
 import { ProfessionalEventPublisherPortToken } from '../ports/event-publisher.port';
+import { MediaFileService } from '../../../media/application/media-file.service';
 import { ProfessionalShowcaseService } from './professional-showcase.service';
 import {
   BusinessHoursInvalidError,
@@ -154,7 +155,10 @@ describe('ProfessionalShowcaseService — docs 35 §6 (6.3.3)', () => {
   beforeEach(async () => {
     findByUserId = jest.fn();
 
-    const fakePort: ProfessionalShowcaseReadPort = { findByUserId };
+    const fakePort: ProfessionalShowcaseReadPort = {
+      findByUserId,
+      findPortfolio: jest.fn(),
+    };
 
     const moduleRef = await Test.createTestingModule({
       providers: [
@@ -171,11 +175,21 @@ describe('ProfessionalShowcaseService — docs 35 §6 (6.3.3)', () => {
             upsertLocation: jest.fn(),
             categoryById: jest.fn(),
             divisionExists: jest.fn(),
+            confirmPortfolioItem: jest.fn(),
+            updatePortfolioItem: jest.fn(),
+            deletePortfolioItem: jest.fn(),
           },
         },
         {
           provide: ProfessionalEventPublisherPortToken,
           useValue: { publish: jest.fn() },
+        },
+        {
+          provide: MediaFileService,
+          useValue: {
+            verifyForConfirm: jest.fn(),
+            deleteObject: jest.fn(),
+          },
         },
       ],
     }).compile();
@@ -322,7 +336,10 @@ describe('ProfessionalShowcaseService — docs 36 §6 (6.3.4, écritures)', () =
     };
     publish = jest.fn();
 
-    const fakeRead: ProfessionalShowcaseReadPort = { findByUserId };
+    const fakeRead: ProfessionalShowcaseReadPort = {
+      findByUserId,
+      findPortfolio: jest.fn(),
+    };
     const fakeWrite = writer as unknown as ProfessionalShowcaseWritePort;
 
     const moduleRef = await Test.createTestingModule({
@@ -333,6 +350,13 @@ describe('ProfessionalShowcaseService — docs 36 §6 (6.3.4, écritures)', () =
         {
           provide: ProfessionalEventPublisherPortToken,
           useValue: { publish },
+        },
+        {
+          provide: MediaFileService,
+          useValue: {
+            verifyForConfirm: jest.fn(),
+            deleteObject: jest.fn(),
+          },
         },
       ],
     }).compile();
@@ -592,5 +616,172 @@ describe('ProfessionalShowcaseService — docs 36 §6 (6.3.4, écritures)', () =
         payload: expect.objectContaining({ fields: ['location'] }),
       }),
     );
+  });
+});
+
+describe('ProfessionalShowcaseService — docs 37 §6 (6.3.5a, portfolio)', () => {
+  let service: ProfessionalShowcaseService;
+  let findByUserId: jest.Mock;
+  let findPortfolio: jest.Mock;
+  let writer: {
+    confirmPortfolioItem: jest.Mock;
+    updatePortfolioItem: jest.Mock;
+    deletePortfolioItem: jest.Mock;
+  };
+  let publish: jest.Mock;
+  let media: { verifyForConfirm: jest.Mock; deleteObject: jest.Mock };
+
+  const PORTFOLIO_CMD = {
+    sortOrder: 1,
+    purpose: 'BEFORE_AFTER',
+    expectedVersion: 1,
+  };
+
+  beforeEach(async () => {
+    findByUserId = jest.fn();
+    findPortfolio = jest.fn();
+    writer = {
+      confirmPortfolioItem: jest.fn(),
+      updatePortfolioItem: jest.fn(),
+      deletePortfolioItem: jest.fn(),
+    };
+    publish = jest.fn();
+    media = { verifyForConfirm: jest.fn(), deleteObject: jest.fn() };
+
+    const fakeRead: ProfessionalShowcaseReadPort = { findByUserId, findPortfolio };
+    const fakeWrite = writer as unknown as ProfessionalShowcaseWritePort;
+
+    const moduleRef = await Test.createTestingModule({
+      providers: [
+        ProfessionalShowcaseService,
+        { provide: ProfessionalShowcaseReadPortToken, useValue: fakeRead },
+        { provide: ProfessionalShowcaseWritePortToken, useValue: fakeWrite },
+        { provide: ProfessionalEventPublisherPortToken, useValue: { publish } },
+        { provide: MediaFileService, useValue: media },
+      ],
+    }).compile();
+
+    service = moduleRef.get(ProfessionalShowcaseService);
+  });
+
+  it('confirmPortfolio OK → writer bumpé + événement portfolio (version + 1)', async () => {
+    findByUserId.mockResolvedValue(makeView());
+    media.verifyForConfirm.mockResolvedValue({ id: 'media-1' });
+    writer.confirmPortfolioItem.mockResolvedValue(true);
+
+    await service.confirmPortfolio('user-1', 'media-1', 1);
+
+    expect(writer.confirmPortfolioItem).toHaveBeenCalledWith('user-1', 'media-1', 1);
+    expect(publish).toHaveBeenCalledWith(
+      expect.objectContaining({
+        payload: expect.objectContaining({ version: 2, fields: ['portfolio'] }),
+      }),
+    );
+  });
+
+  it('confirmPortfolio version obsolète → VersionConflictError, pas d’événement', async () => {
+    findByUserId.mockResolvedValue(makeView());
+    media.verifyForConfirm.mockResolvedValue({ id: 'media-1' });
+    writer.confirmPortfolioItem.mockResolvedValue(false);
+
+    await expect(
+      service.confirmPortfolio('user-1', 'media-1', 1),
+    ).rejects.toThrow(VersionConflictError);
+    expect(publish).not.toHaveBeenCalled();
+  });
+
+  it('confirmPortfolio garde media en échec → propagée, pas d’écriture', async () => {
+    findByUserId.mockResolvedValue(makeView());
+    media.verifyForConfirm.mockRejectedValue(new Error('410'));
+    await expect(
+      service.confirmPortfolio('user-1', 'media-1', 1),
+    ).rejects.toThrow('410');
+    expect(writer.confirmPortfolioItem).not.toHaveBeenCalled();
+  });
+
+  it('updatePortfolio OK → événement portfolio', async () => {
+    findByUserId.mockResolvedValue(makeView());
+    writer.updatePortfolioItem.mockResolvedValue(true);
+
+    await service.updatePortfolio('user-1', 'media-1', PORTFOLIO_CMD);
+
+    expect(writer.updatePortfolioItem).toHaveBeenCalledWith(
+      'user-1',
+      'media-1',
+      PORTFOLIO_CMD,
+    );
+    expect(publish).toHaveBeenCalledWith(
+      expect.objectContaining({
+        payload: expect.objectContaining({ version: 2, fields: ['portfolio'] }),
+      }),
+    );
+  });
+
+  it('updatePortfolio version obsolète → VersionConflictError', async () => {
+    findByUserId.mockResolvedValue(makeView());
+    writer.updatePortfolioItem.mockResolvedValue(false);
+
+    await expect(
+      service.updatePortfolio('user-1', 'media-1', PORTFOLIO_CMD),
+    ).rejects.toThrow(VersionConflictError);
+  });
+
+  it('deletePortfolio OK → objet S3 supprimé + événement', async () => {
+    findByUserId.mockResolvedValue(makeView());
+    writer.deletePortfolioItem.mockResolvedValue({
+      s3Key: 'BJ/PROFESSIONAL/prof-1/a.jpg',
+    });
+
+    await service.deletePortfolio('user-1', 'media-1', 1);
+
+    expect(media.deleteObject).toHaveBeenCalledWith('BJ/PROFESSIONAL/prof-1/a.jpg');
+    expect(publish).toHaveBeenCalledWith(
+      expect.objectContaining({
+        payload: expect.objectContaining({ version: 2, fields: ['portfolio'] }),
+      }),
+    );
+  });
+
+  it('deletePortfolio échec suppression S3 → silencieux, événement quand même', async () => {
+    findByUserId.mockResolvedValue(makeView());
+    writer.deletePortfolioItem.mockResolvedValue({ s3Key: 'k' });
+    media.deleteObject.mockRejectedValue(new Error('réseau'));
+
+    await expect(service.deletePortfolio('user-1', 'media-1', 1)).resolves.toBeDefined();
+    expect(publish).toHaveBeenCalled();
+  });
+
+  it('deletePortfolio version obsolète → VersionConflictError, pas de suppression S3', async () => {
+    findByUserId.mockResolvedValue(makeView());
+    writer.deletePortfolioItem.mockResolvedValue(null);
+
+    await expect(
+      service.deletePortfolio('user-1', 'media-1', 1),
+    ).rejects.toThrow(VersionConflictError);
+    expect(media.deleteObject).not.toHaveBeenCalled();
+  });
+
+  it('listPortfolio → pagination déléguée au reader', async () => {
+    findByUserId.mockResolvedValue(makeView());
+    findPortfolio.mockResolvedValue({
+      items: [],
+      page: 2,
+      limit: 10,
+      total: 0,
+    });
+
+    const page = await service.listPortfolio('user-1', 2, 10);
+
+    expect(findPortfolio).toHaveBeenCalledWith('user-1', 2, 10);
+    expect(page.page).toBe(2);
+  });
+
+  it('listPortfolio compte interdit → AccountLockedError', async () => {
+    findByUserId.mockResolvedValue(makeView({ status: 'SUSPENDED' }));
+
+    await expect(service.listPortfolio('user-1', 1, 10)).rejects.toThrow(
+      AccountLockedError,
+    );
+    expect(findPortfolio).not.toHaveBeenCalled();
   });
 });

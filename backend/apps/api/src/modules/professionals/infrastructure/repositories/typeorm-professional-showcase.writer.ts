@@ -11,9 +11,15 @@ import { DataSource, EntityManager } from 'typeorm';
 import { ProfessionalProfile } from '../../domain/entities/professional-profile.entity';
 import { ServiceNotFoundError } from '../../domain/errors/professionals-errors';
 import {
+  MediaNotFoundError,
+  PortfolioUpdateInvalidError,
+} from '../../../media/domain/errors/media-errors';
+import {
   BusinessHourInput,
   CategoryReference,
+  DeletePortfolioResult,
   LocationCommand,
+  PortfolioItemCommand,
   ProfessionalShowcaseWritePort,
   ServiceCommand,
   UpdateShowcaseCommand,
@@ -211,8 +217,155 @@ export class TypeOrmProfessionalShowcaseWriter
     });
   }
 
-  async categoryById(categoryId: string): Promise<CategoryReference | null> {
-    const rows = await this.dataSource.query(
+  /**
+   * Confirm portfolio (37 RF-PW-P01) : bump version + PROCESSING → READY,
+   * sort_order = fin de liste. Le HEAD S3 a été fait par le service.
+   */
+  async confirmPortfolioItem(
+    userId: string,
+    mediaId: string,
+    expectedVersion: number,
+  ): Promise<boolean> {
+    return this.dataSource.transaction(async (manager) => {
+      const ok = await this.touchProfileVersion(manager, userId, expectedVersion);
+      if (!ok) return false;
+      const [maxRow] = await manager.query(
+        `SELECT COALESCE(MAX(sort_order) + 1, 0)::int AS next
+           FROM media.files
+          WHERE owner_type = 'PROFESSIONAL'
+            AND owner_id = (SELECT id FROM pros.profiles WHERE user_id = $1)
+            AND status = 'READY' AND deleted_at IS NULL`,
+        [userId],
+      );
+      const [rows] = await manager.query(
+        `UPDATE media.files SET status = 'READY', sort_order = $3,
+           updated_at = now()
+         WHERE id = $1
+           AND owner_type = 'PROFESSIONAL'
+           AND owner_id = (SELECT id FROM pros.profiles WHERE user_id = $2)
+           AND status = 'PROCESSING' AND deleted_at IS NULL
+         RETURNING id`,
+        [mediaId, userId, Number(maxRow.next)],
+      );
+      if (rows.length === 0) {
+        // rollback du bump : ligne absente ou plus PROCESSING (race).
+        throw new MediaNotFoundError();
+      }
+      return true;
+    });
+  }
+
+  /**
+   * Update portfolio (37 RF-PW-P02) : bump + purpose et/ou sort_order
+   * (déplacement relatif, séquence contiguë 0..n-1, même transaction).
+   */
+  async updatePortfolioItem(
+    userId: string,
+    mediaId: string,
+    cmd: PortfolioItemCommand,
+  ): Promise<boolean> {
+    if (
+      cmd.purpose !== undefined &&
+      cmd.purpose !== 'PORTFOLIO' &&
+      cmd.purpose !== 'BEFORE_AFTER'
+    ) {
+      throw new PortfolioUpdateInvalidError();
+    }
+    return this.dataSource.transaction(async (manager) => {
+      const ok = await this.touchProfileVersion(manager, userId, cmd.expectedVersion);
+      if (!ok) return false;
+      const rows = await manager.query(
+        `SELECT id, sort_order FROM media.files
+          WHERE id = $1
+            AND owner_type = 'PROFESSIONAL'
+            AND owner_id = (SELECT id FROM pros.profiles WHERE user_id = $2)
+            AND status = 'READY' AND deleted_at IS NULL
+          LIMIT 1`,
+        [mediaId, userId],
+      );
+      if (rows.length === 0) {
+        // rollback du bump : 404 media inconnu ou d'un autre pro.
+        throw new MediaNotFoundError();
+      }
+      const current = Number(rows[0].sort_order);
+      let target = current;
+      if (cmd.sortOrder !== undefined && cmd.sortOrder !== current) {
+        const countRows = await manager.query(
+          `SELECT count(*)::int AS n FROM media.files
+            WHERE owner_type = 'PROFESSIONAL'
+              AND owner_id = (SELECT id FROM pros.profiles WHERE user_id = $1)
+              AND status = 'READY' AND deleted_at IS NULL`,
+          [userId],
+        );
+        const count = Number(countRows[0].n);
+        target = Math.max(0, Math.min(cmd.sortOrder, count - 1));
+        if (target > current) {
+          await manager.query(
+            `UPDATE media.files SET sort_order = sort_order - 1, updated_at = now()
+              WHERE owner_type = 'PROFESSIONAL'
+                AND owner_id = (SELECT id FROM pros.profiles WHERE user_id = $1)
+                AND status = 'READY' AND deleted_at IS NULL
+                AND id <> $2 AND sort_order > $3 AND sort_order <= $4`,
+            [userId, mediaId, current, target],
+          );
+        } else if (target < current) {
+          await manager.query(
+            `UPDATE media.files SET sort_order = sort_order + 1, updated_at = now()
+              WHERE owner_type = 'PROFESSIONAL'
+                AND owner_id = (SELECT id FROM pros.profiles WHERE user_id = $1)
+                AND status = 'READY' AND deleted_at IS NULL
+                AND id <> $2 AND sort_order >= $3 AND sort_order < $4`,
+            [userId, mediaId, target, current],
+          );
+        }
+      }
+      const [upd] = await manager.query(
+        `UPDATE media.files SET purpose = COALESCE($3, purpose),
+           sort_order = $4, updated_at = now()
+         WHERE id = $1
+           AND owner_type = 'PROFESSIONAL'
+           AND owner_id = (SELECT id FROM pros.profiles WHERE user_id = $2)
+           AND status = 'READY' AND deleted_at IS NULL
+         RETURNING id`,
+        [mediaId, userId, cmd.purpose ?? null, target],
+      );
+      if (upd.length === 0) {
+        throw new MediaNotFoundError();
+      }
+      return true;
+    });
+  }
+
+  /**
+   * Delete portfolio (37 RF-PW-P03) : bump + soft delete (deleted_at),
+   * renvoie la clé S3 pour suppression de l'objet après commit.
+   */
+  async deletePortfolioItem(
+    userId: string,
+    mediaId: string,
+    expectedVersion: number,
+  ): Promise<DeletePortfolioResult | null> {
+    return this.dataSource.transaction(async (manager) => {
+      const ok = await this.touchProfileVersion(manager, userId, expectedVersion);
+      if (!ok) return null;
+      const [rows] = await manager.query(
+        `UPDATE media.files SET deleted_at = now(), updated_at = now()
+         WHERE id = $1
+           AND owner_type = 'PROFESSIONAL'
+           AND owner_id = (SELECT id FROM pros.profiles WHERE user_id = $2)
+           AND status = 'READY' AND deleted_at IS NULL
+         RETURNING s3_key`,
+        [mediaId, userId],
+      );
+      if (rows.length === 0) {
+        // rollback du bump : 404 media inconnu ou d'un autre pro.
+        throw new MediaNotFoundError();
+      }
+      return { s3Key: rows[0].s3_key };
+    });
+  }
+
+  async categoryById(categoryId: string): Promise<CategoryReference | null> {    const rows = await this.dataSource.query(
       `SELECT id, parent_id AS "parentId", active
          FROM pros.categories
         WHERE id = $1 AND deleted_at IS NULL

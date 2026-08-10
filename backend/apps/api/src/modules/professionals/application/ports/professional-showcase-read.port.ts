@@ -75,6 +75,21 @@ export interface ShowcasePortfolioItem {
   sort_order: number;
 }
 
+/** Item de GET /professionals/me/portfolio (37 RF-PW-P04) — lecture paginée. */
+export interface PortfolioPageItem extends ShowcasePortfolioItem {
+  mime_type: string;
+  size_bytes: number;
+  duration_sec: number | null;
+  created_at: string;
+}
+
+export interface PortfolioPage {
+  items: PortfolioPageItem[];
+  page: number;
+  limit: number;
+  total: number;
+}
+
 export interface ShowcaseReputation {
   trust_score: number;
   trust_level: string;
@@ -108,6 +123,17 @@ export interface ProfessionalShowcaseReadPort {
    * `profile` null si aucun pros.profiles.
    */
   findByUserId(userId: string): Promise<ProfessionalShowcaseView | null>;
+
+  /**
+   * Portfolio READY paginé du pro (37 RF-PW-P04) : tri sort_order ASC,
+   * created_at ASC ; page ≥ 1, limit 1..100. Retourne page vide si aucun
+   * item — le service garde (404 pro) avant l'appel.
+   */
+  findPortfolio(
+    userId: string,
+    page: number,
+    limit: number,
+  ): Promise<PortfolioPage>;
 }
 
 export const ProfessionalShowcaseReadPortToken =

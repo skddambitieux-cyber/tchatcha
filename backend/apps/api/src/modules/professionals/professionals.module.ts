@@ -17,6 +17,7 @@ import {
 } from './domain/entities/professional-extras.entity';
 import { Reputation } from '../media/domain/entities/media-reputation.entity';
 import { AuthModule } from '../auth/auth.module';
+import { MediaModule } from '../media/media.module';
 import { ProfessionalShowcaseService } from './application/services/professional-showcase.service';
 import { ProfessionalShowcaseReadPortToken } from './application/ports/professional-showcase-read.port';
 import {
@@ -39,6 +40,7 @@ import { ProfessionalsController } from './interface/http/professionals.controll
       Reputation,
     ]),
     AuthModule,
+    MediaModule,
   ],
   controllers: [ProfessionalsController],
   providers: [
