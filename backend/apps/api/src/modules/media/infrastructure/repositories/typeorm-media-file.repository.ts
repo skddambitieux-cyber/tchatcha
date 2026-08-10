@@ -141,16 +141,35 @@ export class TypeOrmMediaFileRepository implements MediaFileRepository {
     );
   }
 
-  async purgeStale(profileId: string, olderThan: Date): Promise<string[]> {
+  async markReady(userId: string, mediaId: string): Promise<void> {
+    await this.dataSource.query(
+      `UPDATE media.files SET status = 'READY', updated_at = now()
+        WHERE id = $1
+          AND owner_type = 'PROFESSIONAL'
+          AND owner_id = (SELECT id FROM pros.profiles WHERE user_id = $2)
+          AND status = 'PROCESSING' AND deleted_at IS NULL`,
+      [mediaId, userId],
+    );
+  }
+
+  async purgeStale(
+    profileId: string,
+    olderThan: Date,
+  ): Promise<Array<{ s3Key: string; purpose: string }>> {
     const rows = await this.dataSource.query(
       `UPDATE media.files SET deleted_at = now(), updated_at = now()
         WHERE owner_type = 'PROFESSIONAL' AND owner_id = $1
           AND status = 'PROCESSING' AND deleted_at IS NULL
           AND created_at < $2
-        RETURNING s3_key`,
+        RETURNING s3_key, purpose`,
       [profileId, olderThan],
     );
-    return (rows ?? []).map((r: { s3_key: string }) => r.s3_key);
+    return (rows ?? []).map(
+      (r: { s3_key: string; purpose: string }) => ({
+        s3Key: r.s3_key,
+        purpose: r.purpose,
+      }),
+    );
   }
 
   async countPending(profileId: string): Promise<number> {

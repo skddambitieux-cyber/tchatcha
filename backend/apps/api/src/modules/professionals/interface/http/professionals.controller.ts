@@ -31,11 +31,14 @@ import {
   PortfolioQueryDto,
   UpdatePortfolioDto,
 } from './dto/portfolio.dto';
+import { ProfessionalVerificationService } from '../../application/services/professional-verification.service';
+import { SubmitVerificationDto } from './dto/verification.dto';
 
 @Controller('professionals')
 export class ProfessionalsController {
   constructor(
     private readonly showcaseService: ProfessionalShowcaseService,
+    private readonly verificationService: ProfessionalVerificationService,
   ) {}
 
   @Get('me')
@@ -211,6 +214,29 @@ export class ProfessionalsController {
       throw new UserNotFoundError();
     }
     return this.showcaseService.listPortfolio(userId, query.page, query.limit);
+  }
+
+  /** POST /professionals/me/verifications — dossier (38 §4.2, RF-VR-03, 201). */
+  @Post('me/verifications')
+  @UseGuards(AuthGuard)
+  submitVerification(
+    @CurrentUser() userId?: string,
+    @Body() dto: SubmitVerificationDto = new SubmitVerificationDto(),
+  ) {
+    if (!userId) {
+      throw new UserNotFoundError();
+    }
+    return this.verificationService.submit(userId, dto.items);
+  }
+
+  /** GET /professionals/me/verification — état du dossier (38 RF-VR-06). */
+  @Get('me/verification')
+  @UseGuards(AuthGuard)
+  getVerification(@CurrentUser() userId?: string) {
+    if (!userId) {
+      throw new UserNotFoundError();
+    }
+    return this.verificationService.getStatus(userId);
   }
 
   private toServiceCommand(dto: ServiceDto) {

@@ -61,6 +61,7 @@ describe('MediaFileService — docs 37 §4 (6.3.5a)', () => {
     findOwnedProcessing: jest.Mock;
     findOwnedReady: jest.Mock;
     markFailed: jest.Mock;
+    markReady: jest.Mock;
     purgeStale: jest.Mock;
     countPending: jest.Mock;
   };
@@ -77,6 +78,7 @@ describe('MediaFileService — docs 37 §4 (6.3.5a)', () => {
       findOwnedProcessing: jest.fn(),
       findOwnedReady: jest.fn(),
       markFailed: jest.fn(),
+      markReady: jest.fn(),
       purgeStale: jest.fn().mockResolvedValue([]),
       countPending: jest.fn().mockResolvedValue(0),
     };
@@ -176,11 +178,11 @@ describe('MediaFileService — docs 37 §4 (6.3.5a)', () => {
       ).rejects.toBeInstanceOf(AccountLockedError);
     });
 
-    it('purpose DOCUMENT (réservé 6.3.5b) → 422 MediaPurposeNotSupportedError', async () => {
+    it('purpose inconnu → 422 MediaPurposeNotSupportedError', async () => {
       findByUserId.mockResolvedValue(PRO);
       await expect(
         service.presign('user-1', {
-          purpose: 'DOCUMENT',
+          purpose: 'AVATAR',
           mimeType: 'image/jpeg',
           sizeBytes: 100,
           width: null,
@@ -264,7 +266,10 @@ describe('MediaFileService — docs 37 §4 (6.3.5a)', () => {
 
     it('purge des orphelins > 24 h : ligne + objet best-effort (RF-MD-07)', async () => {
       findByUserId.mockResolvedValue(PRO);
-      repo.purgeStale.mockResolvedValue(['BJ/PROFESSIONAL/prof-1/orphan.jpg']);
+      repo.purgeStale.mockResolvedValue([
+        { s3Key: 'BJ/PROFESSIONAL/prof-1/orphan.jpg', purpose: 'PORTFOLIO' },
+        { s3Key: 'BJ/PROFESSIONAL/prof-1/orphan.pdf', purpose: 'DOCUMENT' },
+      ]);
       storage.deleteObject.mockRejectedValue(new Error('réseau'));
       repo.createPending.mockResolvedValue(RECORD);
       storage.presignUpload.mockResolvedValue({ url: 'u', expiresIn: 900 });
@@ -282,6 +287,119 @@ describe('MediaFileService — docs 37 §4 (6.3.5a)', () => {
         'BJ/PROFESSIONAL/prof-1/orphan.jpg',
         'public',
       );
+      expect(storage.deleteObject).toHaveBeenCalledWith(
+        'BJ/PROFESSIONAL/prof-1/orphan.pdf',
+        'private',
+      );
+    });
+  });
+
+  describe('presign DOCUMENT (38 RF-VR-01)', () => {
+    const docCmd = {
+      purpose: 'DOCUMENT',
+      mimeType: 'application/pdf',
+      sizeBytes: 2048,
+      width: null,
+      height: null,
+      durationSec: null,
+    };
+
+    it('succès → bucket privé, URL s3://private, pdf accepté', async () => {
+      findByUserId.mockResolvedValue(PRO);
+      repo.createPending.mockResolvedValue({
+        ...RECORD,
+        purpose: 'DOCUMENT',
+        media_type: 'DOCUMENT',
+        mime_type: 'application/pdf',
+      });
+      storage.presignUpload.mockResolvedValue({ url: 'u', expiresIn: 900 });
+
+      const result = await service.presign('user-1', docCmd);
+
+      expect(storage.presignUpload).toHaveBeenCalledWith(
+        expect.objectContaining({ bucket: 'private', contentType: 'application/pdf' }),
+      );
+      expect(repo.createPending).toHaveBeenCalledWith(
+        expect.objectContaining({
+          purpose: 'DOCUMENT',
+          mediaType: 'DOCUMENT',
+          url: expect.stringMatching(/^s3:\/\/private\//u),
+        }),
+      );
+      expect(result.media_id).toBe('media-1');
+    });
+
+    it('mime hors whitelist DOCUMENT → 422 (audio, ou vidéo)', async () => {
+      findByUserId.mockResolvedValue(PRO);
+      await expect(
+        service.presign('user-1', { ...docCmd, mimeType: 'video/mp4' }),
+      ).rejects.toBeInstanceOf(MediaTypeNotSupportedError);
+      expect(storage.presignUpload).not.toHaveBeenCalled();
+    });
+
+    it('taille > 10 Mo → 422 media_size_exceeded', async () => {
+      findByUserId.mockResolvedValue(PRO);
+      await expect(
+        service.presign('user-1', { ...docCmd, sizeBytes: 11 * 1024 * 1024 }),
+      ).rejects.toBeInstanceOf(MediaSizeExceededError);
+      expect(repo.createPending).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('confirmDocument (38 RF-VR-03)', () => {
+    it('succès → HEAD bucket privé + READY (markReady)', async () => {
+      repo.findOwnedProcessing.mockResolvedValue({
+        ...RECORD,
+        purpose: 'DOCUMENT',
+        media_type: 'DOCUMENT',
+      });
+      storage.headObject.mockResolvedValue({ sizeBytes: 2048, contentType: 'application/pdf' });
+      repo.markReady = jest.fn();
+
+      const record = await service.confirmDocument('user-1', 'media-1');
+
+      expect(storage.headObject).toHaveBeenCalledWith(
+        'BJ/PROFESSIONAL/prof-1/a.jpg',
+        'private',
+      );
+      expect(repo.markReady).toHaveBeenCalledWith('user-1', 'media-1');
+      expect(record.status).toBe('READY');
+    });
+
+    it('média non DOCUMENT → 404 non-dévoilant (jamais le portfolio)', async () => {
+      repo.findOwnedProcessing.mockResolvedValue(RECORD);
+      await expect(service.confirmDocument('user-1', 'media-1')).rejects.toBeInstanceOf(
+        MediaNotFoundError,
+      );
+      expect(repo.markReady).not.toHaveBeenCalled();
+    });
+
+    it('objet absent du bucket → 410 media_not_uploaded', async () => {
+      repo.findOwnedProcessing.mockResolvedValue({
+        ...RECORD,
+        purpose: 'DOCUMENT',
+      });
+      storage.headObject.mockResolvedValue(null);
+      await expect(service.confirmDocument('user-1', 'media-1')).rejects.toBeInstanceOf(
+        MediaNotUploadedError,
+      );
+    });
+
+    it('taille réelle > 10 Mo → ligne FAILED + 422 MediaInvalidError', async () => {
+      repo.findOwnedProcessing.mockResolvedValue({
+        ...RECORD,
+        purpose: 'DOCUMENT',
+        media_type: 'DOCUMENT',
+      });
+      storage.headObject.mockResolvedValue({
+        sizeBytes: 11 * 1024 * 1024,
+        contentType: 'application/pdf',
+      });
+      repo.markFailed = jest.fn();
+      await expect(service.confirmDocument('user-1', 'media-1')).rejects.toBeInstanceOf(
+        MediaInvalidError,
+      );
+      expect(repo.markFailed).toHaveBeenCalledWith('user-1', 'media-1');
     });
   });
 
@@ -331,7 +449,7 @@ describe('MediaFileService — docs 37 §4 (6.3.5a)', () => {
     });
 
     it('deleteObject délègue au storage (bucket public)', async () => {
-      await service.deleteObject('BJ/PROFESSIONAL/prof-1/a.jpg');
+      await service.deleteObject('BJ/PROFESSIONAL/prof-1/a.jpg', 'public');
       expect(storage.deleteObject).toHaveBeenCalledWith(
         'BJ/PROFESSIONAL/prof-1/a.jpg',
         'public',

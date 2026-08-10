@@ -73,3 +73,43 @@ export class ServiceInvalidError extends Error {
     this.name = 'ServiceInvalidError';
   }
 }
+
+/** 422 verification_type_not_supported — 38 RF-VR-02 : type de document inconnu. */
+export class VerificationTypeNotSupportedError extends Error {
+  readonly code = 'verification_type_not_supported';
+  readonly httpStatus = 422;
+  constructor() {
+    super('Type de document de vérification non supporté');
+    this.name = 'VerificationTypeNotSupportedError';
+  }
+}
+
+/** 422 document_already_used — 38 RF-VR-03 : média déjà référencé par une ligne. */
+export class DocumentAlreadyUsedError extends Error {
+  readonly code = 'document_already_used';
+  readonly httpStatus = 422;
+  constructor() {
+    super('Document déjà utilisé par une ligne de vérification');
+    this.name = 'DocumentAlreadyUsedError';
+  }
+}
+
+/** 409 verification_pending — 38 RF-VR-04 : ligne PENDING en attente de décision. */
+export class VerificationPendingError extends Error {
+  readonly code = 'verification_pending';
+  readonly httpStatus = 409;
+  constructor() {
+    super('Une demande de vérification est déjà en attente');
+    this.name = 'VerificationPendingError';
+  }
+}
+
+/** 409 verification_already_approved — 38 RF-VR-04 : document déjà approuvé. */
+export class VerificationAlreadyApprovedError extends Error {
+  readonly code = 'verification_already_approved';
+  readonly httpStatus = 409;
+  constructor() {
+    super('Document de vérification déjà approuvé');
+    this.name = 'VerificationAlreadyApprovedError';
+  }
+}

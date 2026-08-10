@@ -410,7 +410,7 @@ export class ProfessionalShowcaseService {
     // Suppression de l'objet après commit : best-effort (la ligne est déjà
     // retirée de la vitrine ; l'objet orphelin reste sur TTL du bucket).
     try {
-      await this.media.deleteObject(result.s3Key);
+      await this.media.deleteObject(result.s3Key, 'public');
     } catch {
       // silencieux : suppression douce déjà validée.
     }

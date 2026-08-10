@@ -49,8 +49,17 @@ export interface MediaFileRepository {
   /** Marque FAILED (taille réelle > max, RF-MD-06). */
   markFailed(userId: string, mediaId: string): Promise<void>;
 
-  /** Purge des PROCESSING orphelins > olderThan (RF-MD-07) — renvoie les clés S3. */
-  purgeStale(profileId: string, olderThan: Date): Promise<string[]>;
+  /** Marque READY une ligne PROCESSING du pro (RF-VR-03, documents privés). */
+  markReady(userId: string, mediaId: string): Promise<void>;
+
+  /**
+   * Purge des PROCESSING orphelins > olderThan (RF-MD-07) — renvoie les clés
+   * S3 + purpose (bucket public/privé selon purpose, RF-VR-01).
+   */
+  purgeStale(
+    profileId: string,
+    olderThan: Date,
+  ): Promise<Array<{ s3Key: string; purpose: string }>>;
 
   /** Nombre de PROCESSING en attente du pro (RF-MD-08, max 50). */
   countPending(profileId: string): Promise<number>;

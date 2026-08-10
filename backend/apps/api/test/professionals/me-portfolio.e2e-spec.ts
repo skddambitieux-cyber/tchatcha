@@ -179,13 +179,13 @@ describe('Lot 6.3.5a — E2E presign + portfolio (37 §6 P1–P14)', () => {
       expect(app.storage.lastPresignInput?.sizeBytes).toBe(2048);
     });
 
-    it('P2 purpose DOCUMENT (réservé 6.3.5b) → 422 media_purpose_not_supported', async () => {
+    it('P2 purpose inconnu → 422 media_purpose_not_supported', async () => {
       const token = await seedPro('66040102', 'e2e-p2');
 
       const res = await app.http
         .post('/api/v1/media/presign')
         .set('Authorization', `Bearer ${token}`)
-        .send({ ...PRESIGN_BODY, purpose: 'DOCUMENT' })
+        .send({ ...PRESIGN_BODY, purpose: 'AVATAR' })
         .expect(422);
 
       expect(res.body.code).toBe('media_purpose_not_supported');

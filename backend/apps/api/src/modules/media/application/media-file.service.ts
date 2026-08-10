@@ -33,7 +33,7 @@ import { MediaStorageConfig } from '../infrastructure/config/media-storage.confi
 import { UserRole } from '../../auth/domain/entities/user-role';
 import { UserStatus } from '../../auth/domain/entities/user.entity';
 
-/** Whitelist MIME (RF-MD-02) → media_type + extension de clé. */
+/** Whitelist MIME portfolio (RF-MD-02) → media_type + extension de clé. */
 const MIME_MAP: Record<string, { mediaType: string; ext: string }> = {
   'image/jpeg': { mediaType: 'IMAGE', ext: 'jpg' },
   'image/png': { mediaType: 'IMAGE', ext: 'png' },
@@ -43,14 +43,23 @@ const MIME_MAP: Record<string, { mediaType: string; ext: string }> = {
   'video/webm': { mediaType: 'VIDEO', ext: 'webm' },
 };
 
-/** Tailles maximales (RF-MD-03, 12-api L181) : 20 Mo image, 100 Mo vidéo. */
+/** Whitelist MIME DOCUMENT (RF-VR-01) — CIN/justificatifs, bucket privé. */
+const DOCUMENT_MIME_MAP: Record<string, { mediaType: string; ext: string }> = {
+  'image/jpeg': { mediaType: 'IMAGE', ext: 'jpg' },
+  'image/png': { mediaType: 'IMAGE', ext: 'png' },
+  'image/webp': { mediaType: 'IMAGE', ext: 'webp' },
+  'application/pdf': { mediaType: 'DOCUMENT', ext: 'pdf' },
+};
+
+/** Tailles maximales (RF-MD-03, RF-VR-01) : 20 Mo image, 100 Mo vidéo, 10 Mo doc. */
 const MAX_SIZE_BYTES: Record<string, number> = {
   IMAGE: 20 * 1024 * 1024,
   VIDEO: 100 * 1024 * 1024,
+  DOCUMENT: 10 * 1024 * 1024,
 };
 
-/** Whitelist purpose 6.3.5a (RF-MD-01) — DOCUMENT réservé 6.3.5b. */
-const ALLOWED_PURPOSES = new Set(['PORTFOLIO', 'BEFORE_AFTER']);
+/** Whitelist purpose (RF-MD-01 + RF-VR-01 — DOCUMENT = dossier privé 6.3.5b). */
+const ALLOWED_PURPOSES = new Set(['PORTFOLIO', 'BEFORE_AFTER', 'DOCUMENT']);
 
 /** Lignes PROCESSING en attente max par pro (RF-MD-08). */
 const MAX_PENDING = 50;
@@ -86,15 +95,20 @@ export class MediaFileService {
     private readonly storageConfig: MediaStorageConfig,
   ) {}
 
-  /** POST /media/presign (RF-MD-01..05/07/08) — aucun fichier reçu. */
+  /** POST /media/presign (RF-MD-01..05/07/08, RF-VR-01) — aucun fichier reçu. */
   async presign(userId: string, cmd: PresignCommand): Promise<PresignResult> {
     const profile = await this.assertProfessional(userId);
     this.assertPurpose(cmd.purpose);
-    const mapped = MIME_MAP[cmd.mimeType];
+    const isDocument = cmd.purpose === 'DOCUMENT';
+    const mapped = (isDocument ? DOCUMENT_MIME_MAP : MIME_MAP)[cmd.mimeType];
     if (!mapped) {
       throw new MediaTypeNotSupportedError();
     }
-    const max = MAX_SIZE_BYTES[mapped.mediaType];
+    // RF-VR-01 : un document est borné à 10 Mo quel que soit son type réel
+    // (image ou pdf) ; les autres purposes suivent RF-MD-03.
+    const max = isDocument
+      ? MAX_SIZE_BYTES.DOCUMENT
+      : MAX_SIZE_BYTES[mapped.mediaType];
     if (cmd.sizeBytes <= 0 || cmd.sizeBytes > max) {
       throw new MediaSizeExceededError();
     }
@@ -102,9 +116,12 @@ export class MediaFileService {
     // RF-MD-07 : purge opportuniste des orphelins (> 24 h) — ligne + objet.
     const staleSince = new Date(Date.now() - STALE_PENDING_HOURS * 3600 * 1000);
     const staleKeys = await this.media.purgeStale(profile.id, staleSince);
-    for (const key of staleKeys) {
+    for (const stale of staleKeys) {
       try {
-        await this.storage.deleteObject(key, 'public');
+        await this.storage.deleteObject(
+          stale.s3Key,
+          stale.purpose === 'DOCUMENT' ? 'private' : 'public',
+        );
       } catch {
         // suppression best-effort : ligne déjà purgée, objet reste sur TTL R2.
       }
@@ -118,7 +135,11 @@ export class MediaFileService {
     // RF-MD-05 : clé {country}/{owner_type}/{owner_id}/{uuid}.{ext}.
     const s3Key = `${profile.country_code}/PROFESSIONAL/${profile.id}/${randomUUID()}.${mapped.ext}`;
     const cfg = this.storageConfig.get();
-    const url = `${cfg.publicUrlBase.replace(/\/+$/u, '')}/${s3Key}`;
+    // RF-VR-01 : les documents (CIN) vont au bucket privé — URL interne jamais
+    // exposée publiquement (stratégie infra+accès, 38 §6).
+    const url = isDocument
+      ? `s3://private/${s3Key}`
+      : `${cfg.publicUrlBase.replace(/\/+$/u, '')}/${s3Key}`;
 
     const record = await this.media.createPending({
       ownerId: profile.id,
@@ -137,7 +158,7 @@ export class MediaFileService {
       key: record.s3_key,
       contentType: record.mime_type,
       sizeBytes: record.size_bytes,
-      bucket: 'public',
+      bucket: isDocument ? 'private' : 'public',
     });
     return {
       media_id: record.id,
@@ -149,7 +170,8 @@ export class MediaFileService {
 
   /**
    * Vérifications avant confirm (RF-MD-06) : ligne PROCESSING du pro, objet
-   * présent (410), taille réelle ≤ max (sinon FAILED + 422).
+   * présent (410), taille réelle ≤ max (sinon FAILED + 422). Bucket selon le
+   * purpose (DOCUMENT → privé, RF-VR-01).
    */
   async verifyForConfirm(
     userId: string,
@@ -159,16 +181,42 @@ export class MediaFileService {
     if (!record) {
       throw new MediaNotFoundError();
     }
-    const meta = await this.storage.headObject(record.s3_key, 'public');
+    const bucket = record.purpose === 'DOCUMENT' ? 'private' : 'public';
+    const meta = await this.storage.headObject(record.s3_key, bucket);
     if (!meta) {
       throw new MediaNotUploadedError();
     }
-    const max = MAX_SIZE_BYTES[record.media_type];
+    const max =
+      record.purpose === 'DOCUMENT'
+        ? MAX_SIZE_BYTES.DOCUMENT
+        : MAX_SIZE_BYTES[record.media_type];
     if (meta.sizeBytes > max) {
       await this.media.markFailed(userId, mediaId);
       throw new MediaInvalidError();
     }
     return record;
+  }
+
+  /**
+   * RF-VR-03 : confirmation d'un document privé (purpose DOCUMENT).
+   * HEAD S3 (410/422), puis PROCESSING → READY. 404 non-dévoilant si le média
+   * n'est pas un document du pro (jamais de PORTFOLIO ici).
+   */
+  async confirmDocument(userId: string, mediaId: string): Promise<MediaFileRecord> {
+    const record = await this.media.findOwnedProcessing(userId, mediaId);
+    if (!record || record.purpose !== 'DOCUMENT') {
+      throw new MediaNotFoundError();
+    }
+    const meta = await this.storage.headObject(record.s3_key, 'private');
+    if (!meta) {
+      throw new MediaNotUploadedError();
+    }
+    if (meta.sizeBytes > MAX_SIZE_BYTES.DOCUMENT) {
+      await this.media.markFailed(userId, mediaId);
+      throw new MediaInvalidError();
+    }
+    await this.media.markReady(userId, mediaId);
+    return { ...record, status: 'READY' };
   }
 
   /** Ligne READY du pro (update/delete portfolio) — null sinon (404). */
@@ -180,8 +228,8 @@ export class MediaFileService {
   }
 
   /** Suppression de l'objet S3 (RF-PW-P03, idempotent). */
-  async deleteObject(s3Key: string): Promise<void> {
-    await this.storage.deleteObject(s3Key, 'public');
+  async deleteObject(s3Key: string, bucket: 'public' | 'private'): Promise<void> {
+    await this.storage.deleteObject(s3Key, bucket);
   }
 
   /** Gardes RF-PW-W02/W03 (mêmes 404/403 que la vitrine). */

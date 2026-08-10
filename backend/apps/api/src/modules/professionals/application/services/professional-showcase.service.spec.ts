@@ -734,7 +734,10 @@ describe('ProfessionalShowcaseService — docs 37 §6 (6.3.5a, portfolio)', () =
 
     await service.deletePortfolio('user-1', 'media-1', 1);
 
-    expect(media.deleteObject).toHaveBeenCalledWith('BJ/PROFESSIONAL/prof-1/a.jpg');
+    expect(media.deleteObject).toHaveBeenCalledWith(
+      'BJ/PROFESSIONAL/prof-1/a.jpg',
+      'public',
+    );
     expect(publish).toHaveBeenCalledWith(
       expect.objectContaining({
         payload: expect.objectContaining({ version: 2, fields: ['portfolio'] }),

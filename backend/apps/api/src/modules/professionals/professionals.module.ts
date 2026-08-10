@@ -10,6 +10,7 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { Category } from './domain/entities/category.entity';
 import { ProfessionalProfile } from './domain/entities/professional-profile.entity';
+import { ProsVerification } from './domain/entities/verification.entity';
 import {
   BusinessHour,
   ProLocation,
@@ -19,13 +20,16 @@ import { Reputation } from '../media/domain/entities/media-reputation.entity';
 import { AuthModule } from '../auth/auth.module';
 import { MediaModule } from '../media/media.module';
 import { ProfessionalShowcaseService } from './application/services/professional-showcase.service';
+import { ProfessionalVerificationService } from './application/services/professional-verification.service';
 import { ProfessionalShowcaseReadPortToken } from './application/ports/professional-showcase-read.port';
 import {
   ProfessionalEventPublisherPortToken,
 } from './application/ports/event-publisher.port';
 import { ProfessionalShowcaseWritePortToken } from './application/ports/professional-showcase-write.port';
+import { ProfessionalVerificationRepositoryToken } from './application/ports/professional-verification-repository.port';
 import { TypeOrmProfessionalShowcaseReader } from './infrastructure/repositories/typeorm-professional-showcase.reader';
 import { TypeOrmProfessionalShowcaseWriter } from './infrastructure/repositories/typeorm-professional-showcase.writer';
+import { TypeOrmProfessionalVerificationRepository } from './infrastructure/repositories/typeorm-professional-verification.repository';
 import { ConsoleProfessionalEventPublisher } from './infrastructure/events/professional-event-publisher';
 import { ProfessionalsController } from './interface/http/professionals.controller';
 
@@ -38,6 +42,7 @@ import { ProfessionalsController } from './interface/http/professionals.controll
       ProLocation,
       BusinessHour,
       Reputation,
+      ProsVerification,
     ]),
     AuthModule,
     MediaModule,
@@ -45,6 +50,7 @@ import { ProfessionalsController } from './interface/http/professionals.controll
   controllers: [ProfessionalsController],
   providers: [
     ProfessionalShowcaseService,
+    ProfessionalVerificationService,
     {
       provide: ProfessionalShowcaseReadPortToken,
       useClass: TypeOrmProfessionalShowcaseReader,
@@ -57,7 +63,17 @@ import { ProfessionalsController } from './interface/http/professionals.controll
       provide: ProfessionalEventPublisherPortToken,
       useClass: ConsoleProfessionalEventPublisher,
     },
+    {
+      provide: ProfessionalVerificationRepositoryToken,
+      useClass: TypeOrmProfessionalVerificationRepository,
+    },
   ],
-  exports: [TypeOrmModule],
+  exports: [
+    TypeOrmModule,
+    ProfessionalShowcaseService,
+    ProfessionalVerificationService,
+    ProfessionalVerificationRepositoryToken,
+    ProfessionalEventPublisherPortToken,
+  ],
 })
 export class ProfessionalsModule {}
