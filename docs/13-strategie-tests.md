@@ -119,3 +119,12 @@ Tout résultat bloquant = release gelée (NFR-K6).
 
 **Règle** : aucune donnée réelle hors prod ; toute donnée de test d'apparence réelle
 est marquée (téléphones en 990 00 00 00, lieux « AGRIPRO »).
+
+## 11. Exécution Nx/Jest — pièges d'outillage (retours 6.3.5)
+
+| Piège | Explication | Commande correcte |
+|---|---|---|
+| `--testPathPattern` **singulier ignoré** | le schéma `@nx/jest:jest` définit **`testPathPatterns` (pluriel, array)** ; le singulier est avalé silencieusement → **toutes les suites tournent** (cher en e2e sur base distante) | `nx run api:e2e --testPathPatterns="me-verification" --testNamePattern="V4 "` |
+| Invocations nx concurrentes | un run laissé vivant (timeout, Ctrl-C) → `Recursive task invocation detected` et résultats incohérents | **une seule invocation nx à la fois** ; vérifier `Get-Process node` si doute |
+| Base e2e distante (Supabase) | lente/instable ; un run complet ≈ 11 min | toujours cibler par `--testPathPatterns` + `--testNamePattern` ; unitaires locaux d'abord |
+| `manager.query` INSERT…RETURNING | renvoie **le tableau de lignes** (pas `[rows, rowCount]`, réservé UPDATE/DELETE) | `const rows = await manager.query(...)` puis `rows[0]` (pattern `TypeOrmMediaFileRepository.createPending`) |
