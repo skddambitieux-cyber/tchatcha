@@ -32,6 +32,7 @@ import {
   UpdatePortfolioDto,
 } from './dto/portfolio.dto';
 import { ProfessionalVerificationService } from '../../application/services/professional-verification.service';
+import { ProfessionalReputationService } from '../../application/services/professional-reputation.service';
 import { SubmitVerificationDto } from './dto/verification.dto';
 
 @Controller('professionals')
@@ -39,6 +40,7 @@ export class ProfessionalsController {
   constructor(
     private readonly showcaseService: ProfessionalShowcaseService,
     private readonly verificationService: ProfessionalVerificationService,
+    private readonly reputationService: ProfessionalReputationService,
   ) {}
 
   @Get('me')
@@ -237,6 +239,16 @@ export class ProfessionalsController {
       throw new UserNotFoundError();
     }
     return this.verificationService.getStatus(userId);
+  }
+
+  /** GET /professionals/me/reputation — synthèse de confiance en lecture seule. */
+  @Get('me/reputation')
+  @UseGuards(AuthGuard)
+  getReputation(@CurrentUser() userId?: string) {
+    if (!userId) {
+      throw new UserNotFoundError();
+    }
+    return this.reputationService.getMine(userId);
   }
 
   private toServiceCommand(dto: ServiceDto) {

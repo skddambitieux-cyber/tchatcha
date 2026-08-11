@@ -21,15 +21,18 @@ import { AuthModule } from '../auth/auth.module';
 import { MediaModule } from '../media/media.module';
 import { ProfessionalShowcaseService } from './application/services/professional-showcase.service';
 import { ProfessionalVerificationService } from './application/services/professional-verification.service';
+import { ProfessionalReputationService } from './application/services/professional-reputation.service';
 import { ProfessionalShowcaseReadPortToken } from './application/ports/professional-showcase-read.port';
 import {
   ProfessionalEventPublisherPortToken,
 } from './application/ports/event-publisher.port';
 import { ProfessionalShowcaseWritePortToken } from './application/ports/professional-showcase-write.port';
 import { ProfessionalVerificationRepositoryToken } from './application/ports/professional-verification-repository.port';
+import { ProfessionalReputationReadPortToken } from './application/ports/professional-reputation-read.port';
 import { TypeOrmProfessionalShowcaseReader } from './infrastructure/repositories/typeorm-professional-showcase.reader';
 import { TypeOrmProfessionalShowcaseWriter } from './infrastructure/repositories/typeorm-professional-showcase.writer';
 import { TypeOrmProfessionalVerificationRepository } from './infrastructure/repositories/typeorm-professional-verification.repository';
+import { TypeOrmProfessionalReputationReader } from './infrastructure/repositories/typeorm-professional-reputation.reader';
 import { ConsoleProfessionalEventPublisher } from './infrastructure/events/professional-event-publisher';
 import { ProfessionalsController } from './interface/http/professionals.controller';
 
@@ -51,6 +54,7 @@ import { ProfessionalsController } from './interface/http/professionals.controll
   providers: [
     ProfessionalShowcaseService,
     ProfessionalVerificationService,
+    ProfessionalReputationService,
     {
       provide: ProfessionalShowcaseReadPortToken,
       useClass: TypeOrmProfessionalShowcaseReader,
@@ -67,11 +71,16 @@ import { ProfessionalsController } from './interface/http/professionals.controll
       provide: ProfessionalVerificationRepositoryToken,
       useClass: TypeOrmProfessionalVerificationRepository,
     },
+    {
+      provide: ProfessionalReputationReadPortToken,
+      useClass: TypeOrmProfessionalReputationReader,
+    },
   ],
   exports: [
     TypeOrmModule,
     ProfessionalShowcaseService,
     ProfessionalVerificationService,
+    ProfessionalReputationService,
     ProfessionalVerificationRepositoryToken,
     ProfessionalEventPublisherPortToken,
   ],
