@@ -32,6 +32,8 @@ jobs:
       NODE_ENV: test
       DATABASE_URL: postgres://tchatcha:tchatcha_ci_password@localhost:5432/tchatcha
       DB_SSL: disabled
+      E2E_DATABASE_URL: postgres://tchatcha:tchatcha_ci_password@localhost:5432/tchatcha_e2e
+      E2E_DB_SSL: disabled
       REDIS_URL: redis://localhost:6379
       JWT_SECRET: ci-test-secret-0123456789
     steps:
@@ -47,6 +49,32 @@ jobs:
         working-directory: backend
         run: npm ci
 
+      - name: Bootstrap isolated E2E database
+        env:
+          PGPASSWORD: tchatcha_ci_password
+        run: |
+          psql -h localhost -U tchatcha -d postgres -c "CREATE DATABASE tchatcha_e2e"
+          psql -h localhost -U tchatcha -d tchatcha_e2e -v ON_ERROR_STOP=1 <<'SQL'
+          CREATE EXTENSION IF NOT EXISTS postgis;
+          CREATE EXTENSION IF NOT EXISTS pg_trgm;
+          CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+          CREATE EXTENSION IF NOT EXISTS pgcrypto;
+          CREATE EXTENSION IF NOT EXISTS ltree;
+          CREATE SCHEMA IF NOT EXISTS authz AUTHORIZATION tchatcha;
+          CREATE SCHEMA IF NOT EXISTS users AUTHORIZATION tchatcha;
+          CREATE SCHEMA IF NOT EXISTS geo AUTHORIZATION tchatcha;
+          CREATE SCHEMA IF NOT EXISTS pros AUTHORIZATION tchatcha;
+          CREATE SCHEMA IF NOT EXISTS market AUTHORIZATION tchatcha;
+          CREATE SCHEMA IF NOT EXISTS pay AUTHORIZATION tchatcha;
+          CREATE SCHEMA IF NOT EXISTS review AUTHORIZATION tchatcha;
+          CREATE SCHEMA IF NOT EXISTS msg AUTHORIZATION tchatcha;
+          CREATE SCHEMA IF NOT EXISTS notif AUTHORIZATION tchatcha;
+          CREATE SCHEMA IF NOT EXISTS admin AUTHORIZATION tchatcha;
+          CREATE SCHEMA IF NOT EXISTS audit AUTHORIZATION tchatcha;
+          CREATE SCHEMA IF NOT EXISTS media AUTHORIZATION tchatcha;
+          CREATE SCHEMA IF NOT EXISTS search AUTHORIZATION tchatcha;
+          SQL
+
       - name: Migrations (TypeORM, base éphémère)
         working-directory: backend
         run: |
@@ -60,6 +88,10 @@ jobs:
       - name: Unit tests
         working-directory: backend
         run: npx nx test api
+
+      - name: E2E tests (isolated database)
+        working-directory: backend
+        run: npx nx e2e api --runInBand
 
       - name: Build
         working-directory: backend

@@ -1,6 +1,6 @@
 /**
  * TCHATCHA — Suite E2E lot 6.2 (docs/29-tests-auth.md §4, G1–G5).
- * Exécution : npx nx e2e api — base isolée (E2E_DATABASE_URL / DATABASE_URL),
+ * Exécution : npx nx e2e api — base isolée obligatoire (E2E_DATABASE_URL),
  * SMS espionné pour capter les codes OTP, app Nest complète via supertest.
  * Préfixe : /api/v1 (main.ts).
  *

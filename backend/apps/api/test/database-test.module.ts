@@ -1,37 +1,26 @@
 /**
  * TCHATCHA — Module de base pour les tests E2E (suite 6.2-E2E).
- * Surcharge DatabaseModule : pointe vers E2E_DATABASE_URL (base isolée) si
- * présent, sinon DATABASE_URL ; synchronize active pour créer le schéma de
- * test sans migrations. Jamais utilisé en production.
+ * Surcharge DatabaseModule : pointe exclusivement vers E2E_DATABASE_URL,
+ * validée comme distincte de DATABASE_URL avant toute connexion.
  */
 import { Global, Module } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
-
-const urlFor = (config: ConfigService): { url: string; ssl: object | undefined } => {
-  const url =
-    process.env.E2E_DATABASE_URL ??
-    process.env.DATABASE_URL ??
-    config.getOrThrow<string>('DATABASE_URL');
-  const ssl =
-    process.env.E2E_DB_SSL ?? process.env.DB_SSL === 'require'
-      ? { rejectUnauthorized: false }
-      : undefined;
-  return { url, ssl };
-};
+import { resolveE2eDatabaseConfig } from '../src/config/e2e-database.config';
 
 @Global()
 @Module({
   imports: [
     TypeOrmModule.forRootAsync({
-      inject: [ConfigService],
-      useFactory: (config: ConfigService) => {
-        const conn = urlFor(config);
+      useFactory: () => {
+        const conn = resolveE2eDatabaseConfig(process.env);
         return {
           type: 'postgres',
           url: conn.url,
           ssl: conn.ssl,
           autoLoadEntities: true,
+          // Dette bloquante C2 : temporaire, uniquement sur une base E2E
+          // explicitement distincte. À remplacer par les migrations après
+          // réconciliation de la migration 003.
           synchronize: true,
           migrationsRun: false,
           logging: false,

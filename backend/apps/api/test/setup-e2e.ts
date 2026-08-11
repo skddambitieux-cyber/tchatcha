@@ -5,6 +5,8 @@
  */
 import { config as loadEnv } from 'dotenv';
 import * as path from 'path';
+import { resolveE2eDatabaseConfig } from '../src/config/e2e-database.config';
 
 const rootEnv = path.resolve(__dirname, '../../../.env');
 loadEnv({ path: rootEnv });
+resolveE2eDatabaseConfig(process.env);
