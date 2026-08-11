@@ -166,3 +166,12 @@ révocation d'un APPROVED (badge retiré) ; A8 decide sur REJECTED → 409.
   `AdminGuard` + `AdminVerificationService` + DTOs · extension `StoragePort` (presignRead,
   adapter S3 + fakes) · événements · tests unitaires + e2e · lint/build verts · commit
   + push develop (un commit par sous-lot).
+
+## 9. Addendum d'implémentation 6.3.5b-2
+
+- `pros.verifications` demeure la source métier ; `admin.validation_tasks` est une file générique.
+- `AdminGuard` compose `AuthGuard` puis relit le rôle `ADMIN` via `UserRepositoryPort`.
+- `StoragePortToken` et `UserRepositoryPortToken` sont exportés par leurs modules propriétaires.
+- Le recalcul transactionnel utilise un UPSERT de `pros.reputation` si l'agrégat est absent.
+- Les événements de décision sont publiés après le retour réussi de la transaction.
+- Les tests E2E administratifs A1–A8 utilisent exclusivement la plage `660403*`.

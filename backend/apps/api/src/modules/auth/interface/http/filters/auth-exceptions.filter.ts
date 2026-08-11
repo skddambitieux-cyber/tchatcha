@@ -10,6 +10,7 @@ import {
   ExceptionFilter,
   HttpException,
   HttpStatus,
+  Logger,
 } from '@nestjs/common';
 import { Response } from 'express';
 
@@ -32,6 +33,8 @@ function isDomainError(err: unknown): err is DomainErrorShape {
 
 @Catch()
 export class AuthExceptionsFilter implements ExceptionFilter {
+  private readonly logger = new Logger(AuthExceptionsFilter.name);
+
   catch(exception: unknown, host: ArgumentsHost): void {
     const ctx = host.switchToHttp();
     const res = ctx.getResponse<Response>();
@@ -75,6 +78,17 @@ export class AuthExceptionsFilter implements ExceptionFilter {
       return;
     }
 
+    // Ne jamais journaliser message/stack ici : une erreur d'infrastructure
+    // peut embarquer une URL signée, un token ou des paramètres SQL sensibles.
+    const errorType = exception instanceof Error
+      ? exception.name
+      : typeof exception;
+    const errorCode =
+      typeof exception === 'object' && exception !== null &&
+      typeof (exception as { code?: unknown }).code === 'string'
+        ? (exception as { code: string }).code
+        : 'unknown';
+    this.logger.error(`Unhandled exception type=${errorType} code=${errorCode}`);
     res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
       status: 'error',
       code: 'internal_error',

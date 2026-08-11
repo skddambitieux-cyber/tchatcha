@@ -9,6 +9,7 @@
 import { Injectable } from '@nestjs/common';
 import {
   DeleteObjectCommand,
+  GetObjectCommand,
   HeadObjectCommand,
   PutObjectCommand,
   S3Client,
@@ -17,6 +18,7 @@ import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import {
   ObjectMeta,
   PresignUploadInput,
+  PresignReadInput,
   PresignUploadResult,
   StorageBucket,
   StoragePort,
@@ -55,6 +57,21 @@ export class S3StorageAdapter implements StoragePort {
       Key: input.key,
       ContentType: input.contentType,
       ContentLength: input.sizeBytes,
+    });
+    const url = await getSignedUrl(this.client, command, {
+      expiresIn: cfg.presignTtlSeconds,
+    });
+    return { url, expiresIn: cfg.presignTtlSeconds };
+  }
+
+  async presignRead(input: PresignReadInput): Promise<PresignUploadResult> {
+    const cfg = this.config();
+    if (!cfg.secretAccessKey) {
+      throw new Error('S3_SECRET_ACCESS_KEY manquante (configuration stockage)');
+    }
+    const command = new GetObjectCommand({
+      Bucket: this.bucketFor(input.bucket),
+      Key: input.key,
     });
     const url = await getSignedUrl(this.client, command, {
       expiresIn: cfg.presignTtlSeconds,

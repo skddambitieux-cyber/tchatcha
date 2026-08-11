@@ -38,6 +38,7 @@ import { MediaController } from './interface/http/media.controller';
     TypeOrmModule,
     MediaFileService,
     MediaStorageConfig,
+    StoragePortToken,
   ],
 })
 export class MediaModule {}

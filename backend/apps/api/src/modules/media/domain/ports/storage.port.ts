@@ -25,6 +25,11 @@ export interface PresignUploadResult {
   expiresIn: number;
 }
 
+export interface PresignReadInput {
+  key: string;
+  bucket: StorageBucket;
+}
+
 export interface ObjectMeta {
   sizeBytes: number;
   contentType: string;
@@ -36,6 +41,9 @@ export interface StoragePort {
    * (ADR-007). TTL court : S3_PRESIGN_TTL_SECONDS (défaut 900 s).
    */
   presignUpload(input: PresignUploadInput): Promise<PresignUploadResult>;
+
+  /** URL GET temporaire pour un objet privé (documents de vérification). */
+  presignRead(input: PresignReadInput): Promise<PresignUploadResult>;
 
   /** HEAD de l'objet — null si absent (utilisé au confirm, RF-MD-06). */
   headObject(key: string, bucket: StorageBucket): Promise<ObjectMeta | null>;

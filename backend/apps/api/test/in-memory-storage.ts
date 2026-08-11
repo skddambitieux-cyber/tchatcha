@@ -30,6 +30,10 @@ export class InMemoryStorage implements StoragePort {
     };
   }
 
+  async presignRead(input: { key: string; bucket: 'public' | 'private' }): Promise<{ url: string; expiresIn: number }> {
+    return { url: `http://fake-storage.local/read/${input.key}`, expiresIn: 900 };
+  }
+
   async headObject(key: string): Promise<ObjectMeta | null> {
     if (this.missingKeys.has(key)) return null;
     if (this.headOverride[key]) return this.headOverride[key];

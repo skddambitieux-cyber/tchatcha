@@ -206,7 +206,7 @@ export class ProfessionalVerificationService {
 
 /** Statut global du dossier (RF-VR-06) : PENDING si attente, sinon REJECTED si
  * un document obligatoire est rejeté, sinon APPROVED. */
-function globalStatus(items: VerificationRecord[]): string {
+export function globalStatus(items: VerificationRecord[]): string {
   if (items.some((i) => i.status === 'PENDING')) return 'PENDING';
   if (
     items.some(
@@ -220,7 +220,7 @@ function globalStatus(items: VerificationRecord[]): string {
 
 /** Dérivation lecture de verification_level (38 RF-VR-11, même règle que le
  * recompute admin) : 0 rien · 1 CIN · 2 + selfie (badge) · 3 + justificatif. */
-function deriveLevel(items: VerificationRecord[]): number {
+export function deriveLevel(items: VerificationRecord[]): number {
   const approved = new Map<string, boolean>();
   for (const item of items) {
     if (item.status === 'APPROVED') {
