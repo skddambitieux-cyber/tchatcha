@@ -39,6 +39,7 @@ import { CategoriesController } from './interface/http/categories.controller';
 import { PublicProfessionalService } from './application/services/public-professional.service';
 import { PublicProfessionalReadPortToken } from './application/ports/public-professional-read.port';
 import { TypeOrmPublicProfessionalReader } from './infrastructure/repositories/typeorm-public-professional.reader';
+import { SearchModule } from '../search/search.module';
 
 @Module({
   imports: [
@@ -53,6 +54,7 @@ import { TypeOrmPublicProfessionalReader } from './infrastructure/repositories/t
     ]),
     AuthModule,
     MediaModule,
+    SearchModule,
   ],
   controllers: [ProfessionalsController, CategoriesController],
   providers: [

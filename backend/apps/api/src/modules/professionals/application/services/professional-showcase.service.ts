@@ -5,7 +5,7 @@
  * catégorie (RF-PW-W07) et horaires (RF-PW-W08), événement pros.profile.updated
  * uniquement après succès complet (RF-PW-W11), projection relue après écriture.
  */
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Optional } from '@nestjs/common';
 import {
   ProfessionalShowcaseReadPortToken,
 } from '../ports/professional-showcase-read.port';
@@ -41,6 +41,10 @@ import {
 } from '../../../auth/domain/errors/auth-errors';
 import { UserRole } from '../../../auth/domain/entities/user-role';
 import { UserStatus } from '../../../auth/domain/entities/user.entity';
+import {
+  SearchProjectionPortToken,
+} from '../../../search/application/ports/search-projection.port';
+import type { SearchProjectionPort } from '../../../search/application/ports/search-projection.port';
 
 /** Réponse GET /professionals/me (35 §4). */
 export interface ProfessionalMeResponse {
@@ -138,6 +142,9 @@ export class ProfessionalShowcaseService {
     @Inject(ProfessionalEventPublisherPortToken)
     private readonly events: ProfessionalEventPublisherPort,
     private readonly media: MediaFileService,
+    @Optional()
+    @Inject(SearchProjectionPortToken)
+    private readonly searchProjection?: SearchProjectionPort,
   ) {}
 
   async getMe(userId: string): Promise<ProfessionalMeResponse> {
@@ -226,6 +233,7 @@ export class ProfessionalShowcaseService {
         fields: SERVICE_FIELDS,
       },
     });
+    await this.rebuildSearch(view.profile.id);
     return this.getMe(userId);
   }
 
@@ -250,6 +258,7 @@ export class ProfessionalShowcaseService {
         fields: ['services'],
       },
     });
+    await this.rebuildSearch(view.profile.id);
     return this.getMe(userId);
   }
 
@@ -275,6 +284,7 @@ export class ProfessionalShowcaseService {
         fields: ['services'],
       },
     });
+    await this.rebuildSearch(view.profile.id);
     return this.getMe(userId);
   }
 
@@ -298,6 +308,7 @@ export class ProfessionalShowcaseService {
         fields: ['services'],
       },
     });
+    await this.rebuildSearch(view.profile.id);
     return this.getMe(userId);
   }
 
@@ -351,6 +362,7 @@ export class ProfessionalShowcaseService {
         fields: ['location'],
       },
     });
+    await this.rebuildSearch(view.profile.id);
     return this.getMe(userId);
   }
 
@@ -443,6 +455,10 @@ export class ProfessionalShowcaseService {
         fields: ['portfolio'],
       },
     });
+  }
+
+  private async rebuildSearch(professionalId: string): Promise<void> {
+    await this.searchProjection?.rebuild(professionalId);
   }
 
   /** Gardes RF-PW-W02/W03 (404/403), retourne le view pour la projection. */

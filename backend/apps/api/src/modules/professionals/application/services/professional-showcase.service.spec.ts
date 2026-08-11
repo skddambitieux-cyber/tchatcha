@@ -17,6 +17,7 @@ import {
 import { ProfessionalEventPublisherPortToken } from '../ports/event-publisher.port';
 import { MediaFileService } from '../../../media/application/media-file.service';
 import { ProfessionalShowcaseService } from './professional-showcase.service';
+import { SearchProjectionPortToken } from '../../../search/application/ports/search-projection.port';
 import {
   BusinessHoursInvalidError,
   CategoryNotAssignableError,
@@ -321,6 +322,7 @@ describe('ProfessionalShowcaseService — docs 36 §6 (6.3.4, écritures)', () =
     divisionExists: jest.Mock;
   };
   let publish: jest.Mock;
+  let rebuildSearch: jest.Mock;
 
   beforeEach(async () => {
     findByUserId = jest.fn();
@@ -335,6 +337,7 @@ describe('ProfessionalShowcaseService — docs 36 §6 (6.3.4, écritures)', () =
       divisionExists: jest.fn(),
     };
     publish = jest.fn();
+    rebuildSearch = jest.fn().mockResolvedValue(undefined);
 
     const fakeRead: ProfessionalShowcaseReadPort = {
       findByUserId,
@@ -358,6 +361,10 @@ describe('ProfessionalShowcaseService — docs 36 §6 (6.3.4, écritures)', () =
             deleteObject: jest.fn(),
           },
         },
+        {
+          provide: SearchProjectionPortToken,
+          useValue: { rebuild: rebuildSearch },
+        },
       ],
     }).compile();
 
@@ -371,6 +378,7 @@ describe('ProfessionalShowcaseService — docs 36 §6 (6.3.4, écritures)', () =
     const me = await service.updateMe('user-1', WRITE_COMMAND);
 
     expect(writer.updateProfile).toHaveBeenCalledWith('user-1', WRITE_COMMAND);
+    expect(rebuildSearch).toHaveBeenCalledWith('prof-1');
     expect(publish).toHaveBeenCalledWith(
       expect.objectContaining({
         type: 'pros.profile.updated',

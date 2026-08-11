@@ -1,4 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Optional } from '@nestjs/common';
 import { StoragePortToken } from '../../../media/domain/ports/storage.port';
 import type { StoragePort } from '../../../media/domain/ports/storage.port';
 import { ProfessionalEventPublisherPortToken } from '../../../professionals/application/ports/event-publisher.port';
@@ -7,6 +7,8 @@ import { globalStatus } from '../../../professionals/application/services/profes
 import { AdminVerificationRepositoryToken } from '../ports/admin-verification-repository.port';
 import type { AdminVerificationRepository } from '../ports/admin-verification-repository.port';
 import { MissingReasonError, VerificationNotFoundError, VerificationPendingError } from '../../domain/errors/admin-errors';
+import { SearchProjectionPortToken } from '../../../search/application/ports/search-projection.port';
+import type { SearchProjectionPort } from '../../../search/application/ports/search-projection.port';
 
 @Injectable()
 export class AdminVerificationService {
@@ -14,6 +16,7 @@ export class AdminVerificationService {
     @Inject(AdminVerificationRepositoryToken) private readonly repo: AdminVerificationRepository,
     @Inject(StoragePortToken) private readonly storage: StoragePort,
     @Inject(ProfessionalEventPublisherPortToken) private readonly events: ProfessionalEventPublisherPort,
+    @Optional() @Inject(SearchProjectionPortToken) private readonly searchProjection?: SearchProjectionPort,
   ) {}
 
   async list(status: string, page: number, limit: number) {
@@ -37,6 +40,7 @@ export class AdminVerificationService {
     const event = approve ? 'pros.verification.approved' : 'pros.verification.rejected';
     this.events.publish({ type: event, payload: { verification_id: id, professional_id: result.professionalId, admin_id: adminId } });
     this.events.publish({ type: 'admin.verification.decided', payload: { verification_id: id, professional_id: result.professionalId, admin_id: adminId, approved: approve } });
+    await this.searchProjection?.rebuild(result.professionalId);
     return { status: globalStatus(result.dossier), verification_level: result.level,
       items: result.dossier.map((item) => ({ id: item.id, type: item.type, media_id: item.media_id,
         mime_type: item.mime_type, status: item.status, note: item.note, created_at: item.created_at.toISOString() })) };

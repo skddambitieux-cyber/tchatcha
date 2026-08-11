@@ -18,15 +18,7 @@ export class TypeOrmPublicProfessionalReader implements PublicProfessionalReadPo
          FROM pros.profiles p
          JOIN users.users u ON u.id = p.user_id
         WHERE p.id = $1
-          AND p.status = 'ACTIVE'
-          AND p.deleted_at IS NULL
-          AND u.status = 'ACTIVE'
-          AND u.deleted_at IS NULL
-          AND u.anonymized_at IS NULL
-          AND EXISTS (
-            SELECT 1 FROM users.user_roles ur
-             WHERE ur.user_id = u.id AND ur.role = 'PROFESSIONAL'
-          )
+          AND search.is_professional_publishable(p.id)
         LIMIT 1`,
       [id],
     );

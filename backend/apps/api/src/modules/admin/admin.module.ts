@@ -12,9 +12,10 @@ import { AdminVerificationsController } from './interface/http/admin-verificatio
 import { AdminVerificationService } from './application/services/admin-verification.service';
 import { AdminVerificationRepositoryToken } from './application/ports/admin-verification-repository.port';
 import { TypeOrmAdminVerificationRepository } from './infrastructure/repositories/typeorm-admin-verification.repository';
+import { SearchModule } from '../search/search.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([ValidationTask, Ban]), AuthModule, MediaModule, ProfessionalsModule],
+  imports: [TypeOrmModule.forFeature([ValidationTask, Ban]), AuthModule, MediaModule, ProfessionalsModule, SearchModule],
   controllers: [AdminVerificationsController],
   providers: [AdminGuard, AdminVerificationService, { provide: AdminVerificationRepositoryToken, useClass: TypeOrmAdminVerificationRepository }],
   exports: [TypeOrmModule],

@@ -25,9 +25,11 @@ describe('AdminVerificationService', () => {
     const approved = { ...pending, status: 'APPROVED' };
     const repo = { decide: jest.fn().mockResolvedValue({ professionalId: 'p1', professionalUserId: 'u1', verification: approved, dossier: [approved], level: 1 }) };
     const events = { publish: jest.fn() };
-    const service = new AdminVerificationService(repo as never, {} as never, events as never);
+    const projection = { rebuild: jest.fn() };
+    const service = new AdminVerificationService(repo as never, {} as never, events as never, projection as never);
     await service.decide('v1', 'a1', true);
     expect(events.publish).toHaveBeenCalledTimes(2);
+    expect(projection.rebuild).toHaveBeenCalledWith('p1');
   });
 
   it.each([['NOT_FOUND', 'verification_not_found'], ['INVALID_STATE', 'verification_pending']])(
