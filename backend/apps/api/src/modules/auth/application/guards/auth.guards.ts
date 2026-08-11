@@ -9,9 +9,7 @@ import {
   ExecutionContext,
   Injectable,
   SetMetadata,
-  UnauthorizedException,
 } from '@nestjs/common';
-import { Reflector } from '@nestjs/core';
 import { UserRole } from '../users/domain/entities/user-role.entity';
 
 export const ROLES_KEY = 'roles';
@@ -29,31 +27,6 @@ export class JwtAuthGuard implements CanActivate {
     // NOTE : implémentation réelle à l'Étape 6.2 (vérification JWT + load user).
     // Ce garde est volontairement non-exposé tant que l'auth métier n'existe pas.
     void context;
-    return true;
-  }
-}
-
-/**
- * Guard de rôles : vérifie que le user authentifié possède le rôle requis.
- * S'appuie sur les rôles injectés par JwtAuthGuard (Étape 6.2).
- */
-@Injectable()
-export class RolesGuard implements CanActivate {
-  constructor(private readonly reflector: Reflector) {}
-
-  canActivate(context: ExecutionContext): boolean {
-    const required = this.reflector.getAllAndOverride<UserRole[]>(ROLES_KEY, [
-      context.getHandler(),
-      context.getClass(),
-    ]);
-    if (!required || required.length === 0) {
-      return true;
-    }
-    const request = context.switchToHttp().getRequest();
-    const user = request.user;
-    if (!user?.roles?.some((r: UserRole) => required.includes(r))) {
-      throw new UnauthorizedException('Rôle insuffisant');
-    }
     return true;
   }
 }
