@@ -6,6 +6,9 @@
     "migration:show": "cross-env TS_NODE_PROJECT=apps/api/tsconfig.migrations.json typeorm-ts-node-commonjs migration:show -d apps/api/src/database/datasource.ts",
     "migration:run": "cross-env TS_NODE_PROJECT=apps/api/tsconfig.migrations.json typeorm-ts-node-commonjs migration:run -d apps/api/src/database/datasource.ts",
     "migration:revert": "cross-env TS_NODE_PROJECT=apps/api/tsconfig.migrations.json typeorm-ts-node-commonjs migration:revert -d apps/api/src/database/datasource.ts",
+    "migration:e2e:show": "cross-env NODE_ENV=test TS_NODE_PROJECT=apps/api/tsconfig.migrations.json typeorm-ts-node-commonjs migration:show -d apps/api/src/database/datasource-e2e.ts",
+    "migration:e2e:run": "cross-env NODE_ENV=test TS_NODE_PROJECT=apps/api/tsconfig.migrations.json typeorm-ts-node-commonjs migration:run -d apps/api/src/database/datasource-e2e.ts",
+    "migration:e2e:revert": "cross-env NODE_ENV=test TS_NODE_PROJECT=apps/api/tsconfig.migrations.json typeorm-ts-node-commonjs migration:revert -d apps/api/src/database/datasource-e2e.ts",
     "migration:generate": "cross-env TS_NODE_PROJECT=apps/api/tsconfig.migrations.json typeorm-ts-node-commonjs migration:generate apps/api/src/database/migrations/NewMigration -d apps/api/src/database/datasource.ts"
   },
   "private": true,

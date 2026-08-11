@@ -18,10 +18,8 @@ import { resolveE2eDatabaseConfig } from '../src/config/e2e-database.config';
           url: conn.url,
           ssl: conn.ssl,
           autoLoadEntities: true,
-          // Dette bloquante C2 : temporaire, uniquement sur une base E2E
-          // explicitement distincte. À remplacer par les migrations après
-          // réconciliation de la migration 003.
-          synchronize: true,
+          // Le schéma E2E doit provenir exclusivement des migrations 001→003.
+          synchronize: false,
           migrationsRun: false,
           logging: false,
         };

@@ -11,6 +11,24 @@ export class ProsVerifications1744200000002 implements MigrationInterface {
   name = 'ProsVerifications1744200000002';
 
   public async up(queryRunner: QueryRunner): Promise<void> {
+    // Réconciliation minimale avec BaseEntity : ces colonnes sont utilisées
+    // par les repositories TypeORM d'authentification mais manquent dans 001.
+    await queryRunner.query(`
+      ALTER TABLE authz.otp_codes
+        ADD COLUMN updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+        ADD COLUMN deleted_at TIMESTAMPTZ
+    `);
+    await queryRunner.query(`
+      ALTER TABLE authz.refresh_tokens
+        ADD COLUMN updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+        ADD COLUMN deleted_at TIMESTAMPTZ
+    `);
+    await queryRunner.query(`
+      ALTER TABLE users.consents
+        ADD COLUMN updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+        ADD COLUMN deleted_at TIMESTAMPTZ
+    `);
+
     await queryRunner.query(`
       CREATE TABLE pros.verifications (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -22,7 +40,8 @@ export class ProsVerifications1744200000002 implements MigrationInterface {
         reviewed_at TIMESTAMPTZ,
         note TEXT,
         created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-        updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+        deleted_at TIMESTAMPTZ
       )
     `);
     await queryRunner.query(
@@ -35,5 +54,20 @@ export class ProsVerifications1744200000002 implements MigrationInterface {
 
   public async down(queryRunner: QueryRunner): Promise<void> {
     await queryRunner.query(`DROP TABLE pros.verifications`);
+    await queryRunner.query(`
+      ALTER TABLE users.consents
+        DROP COLUMN deleted_at,
+        DROP COLUMN updated_at
+    `);
+    await queryRunner.query(`
+      ALTER TABLE authz.refresh_tokens
+        DROP COLUMN deleted_at,
+        DROP COLUMN updated_at
+    `);
+    await queryRunner.query(`
+      ALTER TABLE authz.otp_codes
+        DROP COLUMN deleted_at,
+        DROP COLUMN updated_at
+    `);
   }
 }
