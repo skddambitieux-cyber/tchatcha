@@ -34,6 +34,7 @@ import {
 import { ProfessionalVerificationService } from '../../application/services/professional-verification.service';
 import { ProfessionalReputationService } from '../../application/services/professional-reputation.service';
 import { SubmitVerificationDto } from './dto/verification.dto';
+import { PublicProfessionalService } from '../../application/services/public-professional.service';
 
 @Controller('professionals')
 export class ProfessionalsController {
@@ -41,6 +42,7 @@ export class ProfessionalsController {
     private readonly showcaseService: ProfessionalShowcaseService,
     private readonly verificationService: ProfessionalVerificationService,
     private readonly reputationService: ProfessionalReputationService,
+    private readonly publicProfessionalService: PublicProfessionalService,
   ) {}
 
   @Get('me')
@@ -249,6 +251,12 @@ export class ProfessionalsController {
       throw new UserNotFoundError();
     }
     return this.reputationService.getMine(userId);
+  }
+
+  /** Fiche publique : projection dédiée, sans données personnelles ou exactes. */
+  @Get(':id')
+  getPublic(@Param('id') id: string) {
+    return this.publicProfessionalService.getById(id);
   }
 
   private toServiceCommand(dto: ServiceDto) {

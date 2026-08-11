@@ -35,6 +35,10 @@ import { TypeOrmProfessionalVerificationRepository } from './infrastructure/repo
 import { TypeOrmProfessionalReputationReader } from './infrastructure/repositories/typeorm-professional-reputation.reader';
 import { ConsoleProfessionalEventPublisher } from './infrastructure/events/professional-event-publisher';
 import { ProfessionalsController } from './interface/http/professionals.controller';
+import { CategoriesController } from './interface/http/categories.controller';
+import { PublicProfessionalService } from './application/services/public-professional.service';
+import { PublicProfessionalReadPortToken } from './application/ports/public-professional-read.port';
+import { TypeOrmPublicProfessionalReader } from './infrastructure/repositories/typeorm-public-professional.reader';
 
 @Module({
   imports: [
@@ -50,11 +54,12 @@ import { ProfessionalsController } from './interface/http/professionals.controll
     AuthModule,
     MediaModule,
   ],
-  controllers: [ProfessionalsController],
+  controllers: [ProfessionalsController, CategoriesController],
   providers: [
     ProfessionalShowcaseService,
     ProfessionalVerificationService,
     ProfessionalReputationService,
+    PublicProfessionalService,
     {
       provide: ProfessionalShowcaseReadPortToken,
       useClass: TypeOrmProfessionalShowcaseReader,
@@ -74,6 +79,10 @@ import { ProfessionalsController } from './interface/http/professionals.controll
     {
       provide: ProfessionalReputationReadPortToken,
       useClass: TypeOrmProfessionalReputationReader,
+    },
+    {
+      provide: PublicProfessionalReadPortToken,
+      useClass: TypeOrmPublicProfessionalReader,
     },
   ],
   exports: [
