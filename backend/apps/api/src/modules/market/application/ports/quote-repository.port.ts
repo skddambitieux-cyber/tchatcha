@@ -19,6 +19,7 @@ export interface QuoteView {
   version: number;
   created_at: string;
   updated_at: string;
+  offered_by: 'CLIENT' | 'PROFESSIONAL';
 }
 
 export interface QuoteDetailView extends QuoteView {
@@ -32,6 +33,12 @@ export interface QuoteDetailView extends QuoteView {
 
 export type CreateQuoteResult = QuoteView | 'NOT_MATCHED' | 'ACTIVE_QUOTE_EXISTS' | 'IDEMPOTENCY_MISMATCH';
 export type WithdrawQuoteResult = QuoteDetailView | 'NOT_FOUND' | 'ILLEGAL_TRANSITION' | 'VERSION_CONFLICT';
+export interface CounterOfferCommand {
+  price: number; durationDays: number | null; message: string | null;
+  version: number; idempotencyKey: string; requestHash: string;
+}
+export type CounterOfferResult = QuoteDetailView | 'NOT_FOUND' | 'ILLEGAL_TRANSITION' |
+  'VERSION_CONFLICT' | 'SAME_ACTOR' | 'LIMIT_REACHED' | 'IDEMPOTENCY_MISMATCH';
 
 export interface QuoteRepositoryPort {
   isPublishableProfessional(userId: string): Promise<boolean>;
@@ -42,6 +49,8 @@ export interface QuoteRepositoryPort {
   listSent(userId: string, limit: number, cursor?: { createdAt: string; id: string }): Promise<QuoteDetailView[]>;
   findAccessible(userId: string, quoteId: string): Promise<QuoteDetailView | null>;
   withdraw(userId: string, quoteId: string, version: number): Promise<WithdrawQuoteResult>;
+  counter(userId: string, quoteId: string, command: CounterOfferCommand): Promise<CounterOfferResult>;
+  history(userId: string, quoteId: string): Promise<QuoteDetailView[] | 'NOT_FOUND'>;
 }
 
 export const QuoteRepositoryPortToken = Symbol('QuoteRepositoryPort');

@@ -27,6 +27,9 @@ export class Quote extends BaseEntity {
   @Column({ type: 'uuid' })
   professional_id: string;
 
+  @Column({ type: 'uuid' })
+  created_by: string;
+
   @Column({ type: 'uuid', nullable: true })
   parent_quote_id: string | null;
 

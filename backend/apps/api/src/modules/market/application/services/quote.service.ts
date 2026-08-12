@@ -1,9 +1,9 @@
 import { createHash } from 'node:crypto';
 import { Inject, Injectable } from '@nestjs/common';
 import { QuoteRepositoryPortToken } from '../ports/quote-repository.port';
-import type { CreateQuoteCommand, QuoteDetailView, QuoteRepositoryPort } from '../ports/quote-repository.port';
-import { ProfessionalRequiredError, QuoteActiveExistsError, QuoteIdempotencyMismatchError, QuoteIllegalTransitionError, QuoteInvalidError, QuoteNotFoundError, QuoteVersionConflictError, RequestForbiddenError, RequestNotFoundError } from '../../domain/errors/request-errors';
-import type { CreateQuoteDto } from '../../interface/http/dto/quote.dto';
+import type { CounterOfferCommand, CreateQuoteCommand, QuoteDetailView, QuoteRepositoryPort } from '../ports/quote-repository.port';
+import { ProfessionalRequiredError, QuoteActiveExistsError, QuoteIdempotencyMismatchError, QuoteIllegalTransitionError, QuoteInvalidError, QuoteNegotiationLimitError, QuoteNotFoundError, QuoteSameActorError, QuoteVersionConflictError, RequestForbiddenError, RequestNotFoundError } from '../../domain/errors/request-errors';
+import type { CounterOfferDto, CreateQuoteDto } from '../../interface/http/dto/quote.dto';
 
 @Injectable()
 export class QuoteService {
@@ -60,6 +60,29 @@ export class QuoteService {
     if (result === 'ILLEGAL_TRANSITION') throw new QuoteIllegalTransitionError();
     if (result === 'VERSION_CONFLICT') throw new QuoteVersionConflictError();
     return result;
+  }
+
+  async counter(userId: string, quoteId: string, idempotencyKey: string | undefined, dto: CounterOfferDto) {
+    if (!idempotencyKey || !/^[0-9a-f-]{36}$/i.test(idempotencyKey)) throw new QuoteInvalidError('idempotency_key_required');
+    const normalized = { quote_id: quoteId, price: dto.price, duration_days: dto.duration_days ?? null,
+      message: dto.message?.trim() || null, version: dto.version };
+    const command: CounterOfferCommand = { price: normalized.price, durationDays: normalized.duration_days,
+      message: normalized.message, version: normalized.version, idempotencyKey,
+      requestHash: createHash('sha256').update(JSON.stringify(normalized)).digest('hex') };
+    const result = await this.repository.counter(userId, quoteId, command);
+    if (result === 'NOT_FOUND') throw new QuoteNotFoundError();
+    if (result === 'ILLEGAL_TRANSITION') throw new QuoteIllegalTransitionError();
+    if (result === 'VERSION_CONFLICT') throw new QuoteVersionConflictError();
+    if (result === 'SAME_ACTOR') throw new QuoteSameActorError();
+    if (result === 'LIMIT_REACHED') throw new QuoteNegotiationLimitError();
+    if (result === 'IDEMPOTENCY_MISMATCH') throw new QuoteIdempotencyMismatchError();
+    return result;
+  }
+
+  async history(userId: string, quoteId: string) {
+    const rows = await this.repository.history(userId, quoteId);
+    if (rows === 'NOT_FOUND') throw new QuoteNotFoundError();
+    return { items: rows };
   }
 
   private page(rows: QuoteDetailView[], limit: number) {

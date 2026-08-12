@@ -1,15 +1,15 @@
 import { Injectable } from '@nestjs/common';
 import { DataSource, EntityManager } from 'typeorm';
-import type { CreateQuoteCommand, CreateQuoteResult, QuoteDetailView, QuoteRepositoryPort, QuoteView } from '../../application/ports/quote-repository.port';
+import type { CounterOfferCommand, CreateQuoteCommand, CreateQuoteResult, QuoteDetailView, QuoteRepositoryPort, QuoteView } from '../../application/ports/quote-repository.port';
 
-const SELECT_QUOTE = `SELECT q.id, q.request_id, q.professional_id, q.price,
+const SELECT_QUOTE = `SELECT q.id, q.request_id, q.professional_id, q.created_by, p.user_id AS professional_user_id, q.price,
   q.currency, q.duration_days, q.message, q.status, q.version,
-  q.created_at, q.updated_at FROM market.quotes q`;
+  q.created_at, q.updated_at FROM market.quotes q JOIN pros.profiles p ON p.id=q.professional_id`;
 const SELECT_DETAIL = `SELECT q.id,q.request_id,q.professional_id,q.price,q.currency,
-  q.duration_days,q.message,q.status,q.version,q.created_at,q.updated_at,
+  q.duration_days,q.message,q.status,q.version,q.created_at,q.updated_at,q.created_by,
   r.title AS request_title,r.urgency AS request_urgency,r.expires_at AS request_expires_at,
   (r.budget_max IS NOT NULL AND q.price>r.budget_max) AS out_of_budget,
-  p.business_name,p.headline,p.verified,p.rating_avg,p.rating_count
+  p.business_name,p.headline,p.verified,p.rating_avg,p.rating_count,p.user_id AS professional_user_id
   FROM market.quotes q JOIN market.service_requests r ON r.id=q.request_id
   JOIN pros.profiles p ON p.id=q.professional_id`;
 
@@ -85,10 +85,10 @@ export class TypeOrmQuoteRepository implements QuoteRepositoryPort {
 
       try {
         const inserted = await manager.query(`INSERT INTO market.quotes
-          (request_id,professional_id,price,currency,duration_days,message,status,version,
+          (request_id,professional_id,created_by,price,currency,duration_days,message,status,version,
            professional_idempotency_key,professional_request_hash)
-          VALUES($1,$2,$3,$4,$5,$6,'PENDING',1,$7,$8) RETURNING id`,
-        [command.requestId, professionalId, command.price, matched[0].currency,
+          VALUES($1,$2,$3,$4,$5,$6,$7,'PENDING',1,$8,$9) RETURNING id`,
+        [command.requestId, professionalId, userId, command.price, matched[0].currency,
           command.durationDays, command.message, command.idempotencyKey, command.requestHash]);
         await manager.query(`UPDATE market.service_requests SET status='QUOTED',
           version=version+1,updated_at=now() WHERE id=$1 AND status='OPEN'`, [command.requestId]);
@@ -161,6 +161,60 @@ export class TypeOrmQuoteRepository implements QuoteRepositoryPort {
     });
   }
 
+  async counter(userId: string, quoteId: string, command: CounterOfferCommand) {
+    return this.dataSource.transaction('SERIALIZABLE', async (manager) => {
+      await manager.query(`SELECT pg_advisory_xact_lock(hashtext($1))`, [`counter:${quoteId}`]);
+      const prior = await manager.query(`SELECT id,actor_request_hash FROM market.quotes
+        WHERE created_by=$1 AND actor_idempotency_key=$2`, [userId, command.idempotencyKey]);
+      if (prior[0]) {
+        if (prior[0].actor_request_hash !== command.requestHash) return 'IDEMPOTENCY_MISMATCH' as const;
+        return this.readDetail(manager, prior[0].id);
+      }
+      const parent = await manager.query(`SELECT q.*,r.client_id,r.status AS request_status,r.expires_at,
+          p.user_id AS professional_user_id
+        FROM market.quotes q JOIN market.service_requests r ON r.id=q.request_id
+        JOIN pros.profiles p ON p.id=q.professional_id
+        WHERE q.id=$1 AND q.deleted_at IS NULL AND ($2=r.client_id OR $2=p.user_id)
+        FOR UPDATE OF q,r`, [quoteId, userId]);
+      if (!parent[0]) return 'NOT_FOUND' as const;
+      if (Number(parent[0].version) !== command.version) return 'VERSION_CONFLICT' as const;
+      if (parent[0].status !== 'PENDING' || !['QUOTED', 'NEGOTIATING'].includes(String(parent[0].request_status)) ||
+          new Date(parent[0].expires_at as string).getTime() <= Date.now()) return 'ILLEGAL_TRANSITION' as const;
+      if (parent[0].created_by === userId) return 'SAME_ACTOR' as const;
+      const count = await manager.query(`WITH RECURSIVE chain AS (
+          SELECT id,parent_quote_id FROM market.quotes WHERE id=$1
+          UNION ALL SELECT q.id,q.parent_quote_id FROM market.quotes q JOIN chain c ON q.id=c.parent_quote_id)
+        SELECT count(*)::int-1 AS counter_count FROM chain`, [quoteId]);
+      if (Number(count[0].counter_count) >= 4) return 'LIMIT_REACHED' as const;
+      await manager.query(`UPDATE market.quotes SET status='COUNTERED',version=version+1,updated_at=now() WHERE id=$1`, [quoteId]);
+      const inserted = await manager.query(`INSERT INTO market.quotes
+        (request_id,professional_id,parent_quote_id,created_by,price,currency,duration_days,message,status,version,
+         actor_idempotency_key,actor_request_hash)
+        VALUES($1,$2,$3,$4,$5,$6,$7,$8,'PENDING',1,$9,$10) RETURNING id`,
+      [parent[0].request_id, parent[0].professional_id, quoteId, userId, command.price,
+        parent[0].currency, command.durationDays, command.message, command.idempotencyKey, command.requestHash]);
+      await manager.query(`UPDATE market.service_requests SET status='NEGOTIATING',version=version+1,updated_at=now()
+        WHERE id=$1 AND status='QUOTED'`, [parent[0].request_id]);
+      return this.readDetail(manager, inserted[0].id);
+    });
+  }
+
+  async history(userId: string, quoteId: string): Promise<QuoteDetailView[] | 'NOT_FOUND'> {
+    const access = await this.dataSource.query(`SELECT q.id FROM market.quotes q
+      JOIN market.service_requests r ON r.id=q.request_id JOIN pros.profiles p ON p.id=q.professional_id
+      WHERE q.id=$1 AND q.deleted_at IS NULL AND ($2=r.client_id OR $2=p.user_id)`, [quoteId, userId]);
+    if (!access[0]) return 'NOT_FOUND';
+    const rows = await this.dataSource.query(`WITH RECURSIVE ancestors AS (
+        SELECT id,parent_quote_id FROM market.quotes WHERE id=$1
+        UNION ALL SELECT q.id,q.parent_quote_id FROM market.quotes q JOIN ancestors a ON q.id=a.parent_quote_id),
+      root AS (SELECT id FROM ancestors WHERE parent_quote_id IS NULL), descendants AS (
+        SELECT q.id FROM market.quotes q JOIN root ON q.id=root.id
+        UNION ALL SELECT q.id FROM market.quotes q JOIN descendants d ON q.parent_quote_id=d.id)
+      ${SELECT_DETAIL} JOIN descendants chain ON chain.id=q.id
+      WHERE q.deleted_at IS NULL ORDER BY q.created_at ASC,q.id ASC`, [quoteId]);
+    return rows.map(toDetailView);
+  }
+
   private async expireRequest(requestId: string) {
     await this.dataSource.query(`UPDATE market.service_requests SET status='EXPIRED',version=version+1,updated_at=now()
       WHERE id=$1 AND status IN ('OPEN','QUOTED') AND deleted_at IS NULL AND expires_at<=now()`, [requestId]);
@@ -200,6 +254,7 @@ function toView(row: Record<string, unknown>): QuoteView {
     duration_days: row.duration_days == null ? null : Number(row.duration_days),
     message: row.message == null ? null : String(row.message), status: String(row.status), version: Number(row.version),
     created_at: new Date(row.created_at as string).toISOString(), updated_at: new Date(row.updated_at as string).toISOString(),
+    offered_by: row.created_by === row.professional_user_id ? 'PROFESSIONAL' : 'CLIENT',
   };
 }
 

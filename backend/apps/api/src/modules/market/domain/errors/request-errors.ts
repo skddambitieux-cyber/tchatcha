@@ -30,6 +30,12 @@ export class QuoteVersionConflictError extends RequestError {
 export class QuoteIllegalTransitionError extends RequestError {
   constructor() { super('Retrait du devis interdit', 'quote_illegal_transition', 409); }
 }
+export class QuoteSameActorError extends RequestError {
+  constructor() { super('La contre-offre doit venir de l’autre partie', 'counter_offer_same_actor', 409); }
+}
+export class QuoteNegotiationLimitError extends RequestError {
+  constructor() { super('Limite de contre-offres atteinte', 'counter_offer_limit_reached', 409); }
+}
 export class RequestInvalidError extends RequestError {
   constructor(code = 'request_invalid') { super('Demande invalide', code, 422); }
 }

@@ -9,6 +9,7 @@ describe('QuoteService', () => {
   const repository: jest.Mocked<QuoteRepositoryPort> = {
     isPublishableProfessional: jest.fn(), isActiveProfessional: jest.fn(), isActiveClient: jest.fn(),
     create: jest.fn(), listReceived: jest.fn(), listSent: jest.fn(), findAccessible: jest.fn(), withdraw: jest.fn(),
+    counter: jest.fn(), history: jest.fn(),
   };
   const service = new QuoteService(repository);
 
@@ -42,6 +43,21 @@ describe('QuoteService', () => {
     await expect(service.withdraw('pro-1', quote.id, 1)).rejects.toMatchObject({ code: 'quote_illegal_transition' });
     repository.withdraw.mockResolvedValue('NOT_FOUND');
     await expect(service.withdraw('pro-1', quote.id, 1)).rejects.toMatchObject({ code: 'quote_not_found' });
+  });
+
+  it('normalise une contre-offre et mappe la limite', async () => {
+    repository.counter.mockResolvedValue('LIMIT_REACHED');
+    await expect(service.counter('client-1', quote.id, key,
+      { price: 9000, version: 1, message: '  Accord ?  ' }))
+      .rejects.toMatchObject({ code: 'counter_offer_limit_reached' });
+    expect(repository.counter).toHaveBeenCalledWith('client-1', quote.id, expect.objectContaining({
+      price: 9000, version: 1, message: 'Accord ?', requestHash: expect.stringMatching(/^[0-9a-f]{64}$/),
+    }));
+  });
+
+  it('masque l’historique aux tiers', async () => {
+    repository.history.mockResolvedValue('NOT_FOUND');
+    await expect(service.history('intrus', quote.id)).rejects.toMatchObject({ code: 'quote_not_found' });
   });
 
   it('normalise et empreinte le devis', async () => {

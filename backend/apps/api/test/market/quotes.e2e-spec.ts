@@ -148,6 +148,29 @@ describe('Lot 3C — création initiale de devis', () => {
       .set('Idempotency-Key', randomUUID()).send({ price: 0, duration_days: 0, message: '' }).expect(400);
   });
 
+  it('négocie en alternance, rejoue par idempotence et expose l’historique', async () => {
+    const actors = [clientToken, proToken, clientToken, proToken];
+    for (let index = 0; index < actors.length; index += 1) {
+      const key = randomUUID();
+      const body = { price: 11000 - index * 500, duration_days: 2, message: `Offre ${index + 1}`, version: 1 };
+      const response = await app.http.post(`/api/v1/quotes/${quoteId}/counter-offers`)
+        .set(auth(actors[index])).set('Idempotency-Key', key).send(body).expect(201);
+      expect(response.body).toMatchObject({ status: 'PENDING', offered_by: index % 2 === 0 ? 'CLIENT' : 'PROFESSIONAL' });
+      const replay = await app.http.post(`/api/v1/quotes/${quoteId}/counter-offers`)
+        .set(auth(actors[index])).set('Idempotency-Key', key).send(body).expect(201);
+      expect(replay.body.id).toBe(response.body.id);
+      quoteId = response.body.id;
+    }
+    await app.http.post(`/api/v1/quotes/${quoteId}/counter-offers`).set(auth(clientToken))
+      .set('Idempotency-Key', randomUUID()).send({ price: 8000, version: 1 }).expect(409);
+    const history = await app.http.get(`/api/v1/quotes/${quoteId}/history`).set(auth(clientToken)).expect(200);
+    expect(history.body.items).toHaveLength(5);
+    expect(history.body.items.map((item: { offered_by: string }) => item.offered_by))
+      .toEqual(['PROFESSIONAL', 'CLIENT', 'PROFESSIONAL', 'CLIENT', 'PROFESSIONAL']);
+    const request = await db.query(`SELECT status FROM market.service_requests WHERE id=$1`, [matchedRequestId]);
+    expect(request[0].status).toBe('NEGOTIATING');
+  });
+
   it('retire son devis avec version optimiste et interdit les répétitions ou tiers', async () => {
     const other = await seedUser(`${PREFIX}00004`, 'PROFESSIONAL');
     await db.query(`INSERT INTO pros.profiles

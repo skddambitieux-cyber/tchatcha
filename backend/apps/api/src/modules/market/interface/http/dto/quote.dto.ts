@@ -16,3 +16,8 @@ export class WithdrawQuoteDto {
   @Type(() => Number) @IsInt() @Min(1)
   version: number;
 }
+
+export class CounterOfferDto extends CreateQuoteDto {
+  @Type(() => Number) @IsInt() @Min(1)
+  version: number;
+}
