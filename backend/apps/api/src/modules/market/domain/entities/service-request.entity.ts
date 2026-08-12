@@ -81,4 +81,10 @@ export class ServiceRequest extends BaseEntity {
 
   @Column({ type: 'int', default: 1 })
   version: number;
+
+  @Column({ type: 'uuid', nullable: true })
+  client_idempotency_key: string | null;
+
+  @Column({ type: 'varchar', length: 64, nullable: true })
+  client_request_hash: string | null;
 }
