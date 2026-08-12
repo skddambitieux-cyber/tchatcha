@@ -18,13 +18,14 @@ import { TypeOrmMatchedRequestRepository } from './infrastructure/repositories/t
 import { QuoteService } from './application/services/quote.service';
 import { QuoteRepositoryPortToken } from './application/ports/quote-repository.port';
 import { TypeOrmQuoteRepository } from './infrastructure/repositories/typeorm-quote.repository';
+import { QuotesController } from './interface/http/quotes.controller';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([ServiceRequest, Quote, Booking, Dispute]),
     AuthModule,
   ],
-  controllers: [MatchedRequestsController, RequestsController],
+  controllers: [MatchedRequestsController, QuotesController, RequestsController],
   providers: [
     RequestService,
     MatchedRequestService,

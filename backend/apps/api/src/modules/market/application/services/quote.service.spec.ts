@@ -7,14 +7,32 @@ const quote = { id: '30000000-0000-4000-8000-000000000001' } as QuoteView;
 
 describe('QuoteService', () => {
   const repository: jest.Mocked<QuoteRepositoryPort> = {
-    isPublishableProfessional: jest.fn(), create: jest.fn(),
+    isPublishableProfessional: jest.fn(), isActiveProfessional: jest.fn(), isActiveClient: jest.fn(),
+    create: jest.fn(), listReceived: jest.fn(), listSent: jest.fn(), findAccessible: jest.fn(),
   };
   const service = new QuoteService(repository);
 
   beforeEach(() => {
     jest.clearAllMocks();
     repository.isPublishableProfessional.mockResolvedValue(true);
+    repository.isActiveProfessional.mockResolvedValue(true);
+    repository.isActiveClient.mockResolvedValue(true);
     repository.create.mockResolvedValue(quote);
+  });
+
+  it('pagine les devis reçus et contrôle leur propriétaire', async () => {
+    const detail = { ...quote, created_at: '2026-08-12T10:00:00.000Z' } as never;
+    repository.listReceived.mockResolvedValue([detail, detail]);
+    const page = await service.listReceived('client-1', requestId, 1);
+    expect(page.items).toHaveLength(1);
+    expect(page.next_cursor).toEqual(expect.any(String));
+    repository.listReceived.mockResolvedValue('NOT_FOUND');
+    await expect(service.listReceived('client-1', requestId, 20)).rejects.toMatchObject({ code: 'request_not_found' });
+  });
+
+  it('limite le détail aux participants', async () => {
+    repository.findAccessible.mockResolvedValue(null);
+    await expect(service.detail('intrus', quote.id)).rejects.toMatchObject({ code: 'quote_not_found' });
   });
 
   it('normalise et empreinte le devis', async () => {

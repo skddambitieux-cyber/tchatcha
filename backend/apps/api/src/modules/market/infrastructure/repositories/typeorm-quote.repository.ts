@@ -1,10 +1,17 @@
 import { Injectable } from '@nestjs/common';
 import { DataSource, EntityManager } from 'typeorm';
-import type { CreateQuoteCommand, CreateQuoteResult, QuoteRepositoryPort, QuoteView } from '../../application/ports/quote-repository.port';
+import type { CreateQuoteCommand, CreateQuoteResult, QuoteDetailView, QuoteRepositoryPort, QuoteView } from '../../application/ports/quote-repository.port';
 
 const SELECT_QUOTE = `SELECT q.id, q.request_id, q.professional_id, q.price,
   q.currency, q.duration_days, q.message, q.status, q.version,
   q.created_at, q.updated_at FROM market.quotes q`;
+const SELECT_DETAIL = `SELECT q.id,q.request_id,q.professional_id,q.price,q.currency,
+  q.duration_days,q.message,q.status,q.version,q.created_at,q.updated_at,
+  r.title AS request_title,r.urgency AS request_urgency,r.expires_at AS request_expires_at,
+  (r.budget_max IS NOT NULL AND q.price>r.budget_max) AS out_of_budget,
+  p.business_name,p.headline,p.verified,p.rating_avg,p.rating_count
+  FROM market.quotes q JOIN market.service_requests r ON r.id=q.request_id
+  JOIN pros.profiles p ON p.id=q.professional_id`;
 
 @Injectable()
 export class TypeOrmQuoteRepository implements QuoteRepositoryPort {
@@ -15,6 +22,23 @@ export class TypeOrmQuoteRepository implements QuoteRepositoryPort {
       JOIN search.pro_search_docs sd ON sd.professional_id=p.id
       JOIN pros.locations pl ON pl.professional_id=p.id
       WHERE p.user_id=$1 AND search.is_professional_publishable(p.id) LIMIT 1`, [userId]);
+    return rows.length > 0;
+  }
+
+  async isActiveProfessional(userId: string): Promise<boolean> {
+    const rows = await this.dataSource.query(`SELECT 1 FROM users.users u
+      JOIN users.user_roles ur ON ur.user_id=u.id AND ur.role='PROFESSIONAL'
+      JOIN pros.profiles p ON p.user_id=u.id
+      WHERE u.id=$1 AND u.status='ACTIVE' AND u.deleted_at IS NULL
+        AND u.anonymized_at IS NULL AND p.status='ACTIVE' LIMIT 1`, [userId]);
+    return rows.length > 0;
+  }
+
+  async isActiveClient(userId: string): Promise<boolean> {
+    const rows = await this.dataSource.query(`SELECT 1 FROM users.users u
+      JOIN users.user_roles ur ON ur.user_id=u.id AND ur.role='CLIENT'
+      WHERE u.id=$1 AND u.status='ACTIVE' AND u.deleted_at IS NULL
+        AND u.anonymized_at IS NULL LIMIT 1`, [userId]);
     return rows.length > 0;
   }
 
@@ -76,6 +100,65 @@ export class TypeOrmQuoteRepository implements QuoteRepositoryPort {
     });
   }
 
+  async listReceived(userId: string, requestId: string, limit: number,
+    cursor?: { createdAt: string; id: string }): Promise<QuoteDetailView[] | 'NOT_FOUND'> {
+    await this.expireRequest(requestId);
+    const owned = await this.dataSource.query(`SELECT 1 FROM market.service_requests
+      WHERE id=$1 AND client_id=$2 AND deleted_at IS NULL`, [requestId, userId]);
+    if (!owned[0]) return 'NOT_FOUND';
+    const params: unknown[] = [requestId];
+    let cursorSql = '';
+    if (cursor) { params.push(cursor.createdAt, cursor.id); cursorSql = `AND (q.created_at,q.id)<($2::timestamptz,$3::uuid)`; }
+    params.push(limit);
+    const rows = await this.dataSource.query(`${SELECT_DETAIL}
+      WHERE q.request_id=$1 AND q.deleted_at IS NULL ${cursorSql}
+      ORDER BY q.created_at DESC,q.id DESC LIMIT $${params.length}`, params);
+    return rows.map(toDetailView);
+  }
+
+  async listSent(userId: string, limit: number,
+    cursor?: { createdAt: string; id: string }): Promise<QuoteDetailView[]> {
+    await this.expireAllRequests();
+    const params: unknown[] = [userId];
+    let cursorSql = '';
+    if (cursor) { params.push(cursor.createdAt, cursor.id); cursorSql = `AND (q.created_at,q.id)<($2::timestamptz,$3::uuid)`; }
+    params.push(limit);
+    const rows = await this.dataSource.query(`${SELECT_DETAIL}
+      WHERE p.user_id=$1 AND q.deleted_at IS NULL ${cursorSql}
+      ORDER BY q.created_at DESC,q.id DESC LIMIT $${params.length}`, params);
+    return rows.map(toDetailView);
+  }
+
+  async findAccessible(userId: string, quoteId: string): Promise<QuoteDetailView | null> {
+    await this.expireQuoteRequest(quoteId);
+    const rows = await this.dataSource.query(`${SELECT_DETAIL}
+      WHERE q.id=$1 AND q.deleted_at IS NULL
+        AND (r.client_id=$2 OR p.user_id=$2) LIMIT 1`, [quoteId, userId]);
+    return rows[0] ? toDetailView(rows[0]) : null;
+  }
+
+  private async expireRequest(requestId: string) {
+    await this.dataSource.query(`UPDATE market.service_requests SET status='EXPIRED',version=version+1,updated_at=now()
+      WHERE id=$1 AND status IN ('OPEN','QUOTED') AND deleted_at IS NULL AND expires_at<=now()`, [requestId]);
+    await this.withdrawExpiredQuotes('r.id=$1', [requestId]);
+  }
+  private async expireQuoteRequest(quoteId: string) {
+    await this.dataSource.query(`UPDATE market.service_requests r SET status='EXPIRED',version=r.version+1,updated_at=now()
+      FROM market.quotes q WHERE q.id=$1 AND q.request_id=r.id AND r.status IN ('OPEN','QUOTED')
+        AND r.deleted_at IS NULL AND r.expires_at<=now()`, [quoteId]);
+    await this.withdrawExpiredQuotes('q.id=$1', [quoteId]);
+  }
+  private async expireAllRequests() {
+    await this.dataSource.query(`UPDATE market.service_requests SET status='EXPIRED',version=version+1,updated_at=now()
+      WHERE status IN ('OPEN','QUOTED') AND deleted_at IS NULL AND expires_at<=now()`);
+    await this.withdrawExpiredQuotes('true', []);
+  }
+  private async withdrawExpiredQuotes(predicate: string, params: unknown[]) {
+    await this.dataSource.query(`UPDATE market.quotes q SET status='WITHDRAWN',version=q.version+1,updated_at=now()
+      FROM market.service_requests r WHERE q.request_id=r.id AND r.status='EXPIRED'
+        AND q.status='PENDING' AND q.deleted_at IS NULL AND ${predicate}`, params);
+  }
+
   private async read(manager: EntityManager, id: string): Promise<QuoteView> {
     const rows = await manager.query(`${SELECT_QUOTE} WHERE q.id=$1 AND q.deleted_at IS NULL LIMIT 1`, [id]);
     return toView(rows[0]);
@@ -89,5 +172,17 @@ function toView(row: Record<string, unknown>): QuoteView {
     duration_days: row.duration_days == null ? null : Number(row.duration_days),
     message: row.message == null ? null : String(row.message), status: String(row.status), version: Number(row.version),
     created_at: new Date(row.created_at as string).toISOString(), updated_at: new Date(row.updated_at as string).toISOString(),
+  };
+}
+
+function toDetailView(row: Record<string, unknown>): QuoteDetailView {
+  return {
+    ...toView(row), out_of_budget: Boolean(row.out_of_budget),
+    request: { id: String(row.request_id), title: String(row.request_title),
+      urgency: String(row.request_urgency), expires_at: new Date(row.request_expires_at as string).toISOString() },
+    professional: { id: String(row.professional_id),
+      business_name: row.business_name == null ? null : String(row.business_name),
+      headline: row.headline == null ? null : String(row.headline), verified: Boolean(row.verified),
+      rating_avg: Number(row.rating_avg), rating_count: Number(row.rating_count) },
   };
 }

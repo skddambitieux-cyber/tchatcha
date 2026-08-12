@@ -31,6 +31,13 @@ export class RequestsController {
     return this.quotes.create(userId, id, key, dto);
   }
 
+  @Get(':id/quotes')
+  receivedQuotes(@CurrentUser() userId: string | undefined, @Param('id') id: string,
+    @Query() query: ListRequestsDto) {
+    if (!userId) throw new UserNotFoundError();
+    return this.quotes.listReceived(userId, id, query.limit, query.cursor);
+  }
+
   @Get(':id')
   detail(@CurrentUser() userId: string | undefined, @Param('id') id: string) {
     if (!userId) throw new UserNotFoundError();

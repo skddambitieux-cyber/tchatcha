@@ -21,6 +21,9 @@ export class QuoteActiveExistsError extends RequestError {
 export class QuoteIdempotencyMismatchError extends RequestError {
   constructor() { super('Clé réutilisée avec un contenu différent', 'idempotency_mismatch', 409); }
 }
+export class QuoteNotFoundError extends RequestError {
+  constructor() { super('Devis introuvable', 'quote_not_found', 404); }
+}
 export class RequestInvalidError extends RequestError {
   constructor(code = 'request_invalid') { super('Demande invalide', code, 422); }
 }

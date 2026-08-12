@@ -19,6 +19,7 @@ describe('Lot 3C — création initiale de devis', () => {
   let divisionId: string;
   let matchedRequestId: string;
   let unmatchedRequestId: string;
+  let quoteId: string;
 
   beforeAll(async () => {
     app = await createTestApp(); db = app.app.get(DataSource);
@@ -97,11 +98,31 @@ describe('Lot 3C — création initiale de devis', () => {
       .set(auth(proToken)).set('Idempotency-Key', key).send(quoteBody).expect(201);
     expect(first.body).toMatchObject({ request_id: matchedRequestId, professional_id: proId,
       price: 12000, currency: 'XOF', duration_days: 2, status: 'PENDING', version: 1 });
+    quoteId = first.body.id;
     const replay = await app.http.post(`/api/v1/requests/${matchedRequestId}/quotes`)
       .set(auth(proToken)).set('Idempotency-Key', key).send(quoteBody).expect(201);
     expect(replay.body.id).toBe(first.body.id);
     const request = await db.query(`SELECT status,version FROM market.service_requests WHERE id=$1`, [matchedRequestId]);
     expect(request[0]).toMatchObject({ status: 'QUOTED', version: 2 });
+  });
+
+  it('liste côté client avec badge hors budget et pagination keyset', async () => {
+    const page = await app.http.get(`/api/v1/requests/${matchedRequestId}/quotes?limit=1`)
+      .set(auth(clientToken)).expect(200);
+    expect(page.body.items[0]).toMatchObject({ id: quoteId, out_of_budget: true,
+      professional: { id: proId, business_name: 'Pro devis' },
+      request: { id: matchedRequestId, title: 'Réparation' } });
+    expect(page.body.next_cursor).toBeNull();
+    await app.http.get(`/api/v1/requests/${matchedRequestId}/quotes`).set(auth(proToken)).expect(403);
+  });
+
+  it('liste les devis envoyés et limite le détail aux participants', async () => {
+    const sent = await app.http.get('/api/v1/quotes/sent').set(auth(proToken)).expect(200);
+    expect(sent.body.items[0]).toMatchObject({ id: quoteId, request: { id: matchedRequestId } });
+    await app.http.get(`/api/v1/quotes/${quoteId}`).set(auth(proToken)).expect(200);
+    await app.http.get(`/api/v1/quotes/${quoteId}`).set(auth(clientToken)).expect(200);
+    const stranger = await seedUser(`${PREFIX}00003`, 'CLIENT');
+    await app.http.get(`/api/v1/quotes/${quoteId}`).set(auth(stranger.token)).expect(404);
   });
 
   it('rejette réutilisation différente et second devis actif', async () => {
