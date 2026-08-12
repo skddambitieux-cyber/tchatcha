@@ -12,6 +12,15 @@ export class RequestForbiddenError extends RequestError {
 export class ProfessionalRequiredError extends RequestError {
   constructor() { super('Profil professionnel publiable requis', 'professional_required', 403); }
 }
+export class QuoteInvalidError extends RequestError {
+  constructor(code = 'quote_invalid') { super('Devis invalide', code, 422); }
+}
+export class QuoteActiveExistsError extends RequestError {
+  constructor() { super('Un devis actif existe déjà pour cette demande', 'active_quote_exists', 409); }
+}
+export class QuoteIdempotencyMismatchError extends RequestError {
+  constructor() { super('Clé réutilisée avec un contenu différent', 'idempotency_mismatch', 409); }
+}
 export class RequestInvalidError extends RequestError {
   constructor(code = 'request_invalid') { super('Demande invalide', code, 422); }
 }

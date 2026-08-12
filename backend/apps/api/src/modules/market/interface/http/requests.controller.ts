@@ -4,11 +4,13 @@ import { CurrentUser } from '../../../auth/interface/http/decorators/current-use
 import { UserNotFoundError } from '../../../auth/domain/errors/auth-errors';
 import { RequestService } from '../../application/services/request.service';
 import { CancelRequestDto, ListRequestsDto, PublishRequestDto } from './dto/request.dto';
+import { CreateQuoteDto } from './dto/quote.dto';
+import { QuoteService } from '../../application/services/quote.service';
 
 @Controller('requests')
 @UseGuards(AuthGuard)
 export class RequestsController {
-  constructor(private readonly requests: RequestService) {}
+  constructor(private readonly requests: RequestService, private readonly quotes: QuoteService) {}
 
   @Post()
   publish(@CurrentUser() userId: string | undefined, @Headers('idempotency-key') key: string | undefined, @Body() dto: PublishRequestDto) {
@@ -20,6 +22,13 @@ export class RequestsController {
   list(@CurrentUser() userId: string | undefined, @Query() query: ListRequestsDto) {
     if (!userId) throw new UserNotFoundError();
     return this.requests.listMine(userId, query.limit, query.cursor);
+  }
+
+  @Post(':id/quotes')
+  createQuote(@CurrentUser() userId: string | undefined, @Param('id') id: string,
+    @Headers('idempotency-key') key: string | undefined, @Body() dto: CreateQuoteDto) {
+    if (!userId) throw new UserNotFoundError();
+    return this.quotes.create(userId, id, key, dto);
   }
 
   @Get(':id')

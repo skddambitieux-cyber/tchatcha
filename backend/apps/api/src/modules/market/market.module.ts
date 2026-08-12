@@ -15,6 +15,9 @@ import { MatchedRequestsController } from './interface/http/matched-requests.con
 import { MatchedRequestService } from './application/services/matched-request.service';
 import { MatchedRequestRepositoryPortToken } from './application/ports/matched-request-repository.port';
 import { TypeOrmMatchedRequestRepository } from './infrastructure/repositories/typeorm-matched-request.repository';
+import { QuoteService } from './application/services/quote.service';
+import { QuoteRepositoryPortToken } from './application/ports/quote-repository.port';
+import { TypeOrmQuoteRepository } from './infrastructure/repositories/typeorm-quote.repository';
 
 @Module({
   imports: [
@@ -25,8 +28,10 @@ import { TypeOrmMatchedRequestRepository } from './infrastructure/repositories/t
   providers: [
     RequestService,
     MatchedRequestService,
+    QuoteService,
     { provide: RequestRepositoryPortToken, useClass: TypeOrmRequestRepository },
     { provide: MatchedRequestRepositoryPortToken, useClass: TypeOrmMatchedRequestRepository },
+    { provide: QuoteRepositoryPortToken, useClass: TypeOrmQuoteRepository },
   ],
   exports: [TypeOrmModule],
 })
