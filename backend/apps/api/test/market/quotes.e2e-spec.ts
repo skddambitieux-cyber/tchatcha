@@ -147,4 +147,20 @@ describe('Lot 3C — création initiale de devis', () => {
     await app.http.post(`/api/v1/requests/${unmatchedRequestId}/quotes`).set(auth(proToken))
       .set('Idempotency-Key', randomUUID()).send({ price: 0, duration_days: 0, message: '' }).expect(400);
   });
+
+  it('retire son devis avec version optimiste et interdit les répétitions ou tiers', async () => {
+    const other = await seedUser(`${PREFIX}00004`, 'PROFESSIONAL');
+    await db.query(`INSERT INTO pros.profiles
+      (id,user_id,business_name,status,verified,currency,country_code,created_at,updated_at)
+      VALUES($1,$2,'Autre pro','ACTIVE',false,'XOF','BJ',now(),now())`, [randomUUID(), other.id]);
+    await app.http.post(`/api/v1/quotes/${quoteId}/withdraw`).set(auth(other.token))
+      .send({ version: 1 }).expect(404);
+    await app.http.post(`/api/v1/quotes/${quoteId}/withdraw`).set(auth(proToken))
+      .send({ version: 99 }).expect(409);
+    const withdrawn = await app.http.post(`/api/v1/quotes/${quoteId}/withdraw`).set(auth(proToken))
+      .send({ version: 1 }).expect(201);
+    expect(withdrawn.body).toMatchObject({ id: quoteId, status: 'WITHDRAWN', version: 2 });
+    await app.http.post(`/api/v1/quotes/${quoteId}/withdraw`).set(auth(proToken))
+      .send({ version: 2 }).expect(409);
+  });
 });

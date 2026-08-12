@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import { Inject, Injectable } from '@nestjs/common';
 import { QuoteRepositoryPortToken } from '../ports/quote-repository.port';
 import type { CreateQuoteCommand, QuoteDetailView, QuoteRepositoryPort } from '../ports/quote-repository.port';
-import { ProfessionalRequiredError, QuoteActiveExistsError, QuoteIdempotencyMismatchError, QuoteInvalidError, QuoteNotFoundError, RequestForbiddenError, RequestNotFoundError } from '../../domain/errors/request-errors';
+import { ProfessionalRequiredError, QuoteActiveExistsError, QuoteIdempotencyMismatchError, QuoteIllegalTransitionError, QuoteInvalidError, QuoteNotFoundError, QuoteVersionConflictError, RequestForbiddenError, RequestNotFoundError } from '../../domain/errors/request-errors';
 import type { CreateQuoteDto } from '../../interface/http/dto/quote.dto';
 
 @Injectable()
@@ -51,6 +51,15 @@ export class QuoteService {
     const quote = await this.repository.findAccessible(userId, quoteId);
     if (!quote) throw new QuoteNotFoundError();
     return quote;
+  }
+
+  async withdraw(userId: string, quoteId: string, version: number) {
+    if (!(await this.repository.isActiveProfessional(userId))) throw new ProfessionalRequiredError();
+    const result = await this.repository.withdraw(userId, quoteId, version);
+    if (result === 'NOT_FOUND') throw new QuoteNotFoundError();
+    if (result === 'ILLEGAL_TRANSITION') throw new QuoteIllegalTransitionError();
+    if (result === 'VERSION_CONFLICT') throw new QuoteVersionConflictError();
+    return result;
   }
 
   private page(rows: QuoteDetailView[], limit: number) {

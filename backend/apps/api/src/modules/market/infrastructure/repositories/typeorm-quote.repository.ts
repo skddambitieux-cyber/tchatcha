@@ -137,6 +137,30 @@ export class TypeOrmQuoteRepository implements QuoteRepositoryPort {
     return rows[0] ? toDetailView(rows[0]) : null;
   }
 
+  async withdraw(userId: string, quoteId: string, version: number) {
+    return this.dataSource.transaction(async (manager) => {
+      await manager.query(`UPDATE market.service_requests r SET status='EXPIRED',version=r.version+1,updated_at=now()
+        FROM market.quotes q WHERE q.id=$1 AND q.request_id=r.id AND r.status IN ('OPEN','QUOTED')
+          AND r.deleted_at IS NULL AND r.expires_at<=now()`, [quoteId]);
+      await manager.query(`UPDATE market.quotes q SET status='WITHDRAWN',version=q.version+1,updated_at=now()
+        FROM market.service_requests r WHERE q.id=$1 AND q.request_id=r.id AND r.status='EXPIRED'
+          AND q.status='PENDING' AND q.deleted_at IS NULL`, [quoteId]);
+      const current = await manager.query(`SELECT q.status,q.version,r.status AS request_status
+        FROM market.quotes q JOIN market.service_requests r ON r.id=q.request_id
+        JOIN pros.profiles p ON p.id=q.professional_id
+        WHERE q.id=$1 AND p.user_id=$2 AND q.deleted_at IS NULL FOR UPDATE OF q,r`, [quoteId, userId]);
+      if (!current[0]) return 'NOT_FOUND' as const;
+      if (Number(current[0].version) !== version) return 'VERSION_CONFLICT' as const;
+      if (current[0].status !== 'PENDING' ||
+          !['OPEN', 'QUOTED', 'NEGOTIATING', 'REOPENED'].includes(String(current[0].request_status))) {
+        return 'ILLEGAL_TRANSITION' as const;
+      }
+      await manager.query(`UPDATE market.quotes SET status='WITHDRAWN',version=version+1,updated_at=now()
+        WHERE id=$1`, [quoteId]);
+      return this.readDetail(manager, quoteId);
+    });
+  }
+
   private async expireRequest(requestId: string) {
     await this.dataSource.query(`UPDATE market.service_requests SET status='EXPIRED',version=version+1,updated_at=now()
       WHERE id=$1 AND status IN ('OPEN','QUOTED') AND deleted_at IS NULL AND expires_at<=now()`, [requestId]);
@@ -162,6 +186,10 @@ export class TypeOrmQuoteRepository implements QuoteRepositoryPort {
   private async read(manager: EntityManager, id: string): Promise<QuoteView> {
     const rows = await manager.query(`${SELECT_QUOTE} WHERE q.id=$1 AND q.deleted_at IS NULL LIMIT 1`, [id]);
     return toView(rows[0]);
+  }
+  private async readDetail(manager: EntityManager, id: string): Promise<QuoteDetailView> {
+    const rows = await manager.query(`${SELECT_DETAIL} WHERE q.id=$1 AND q.deleted_at IS NULL LIMIT 1`, [id]);
+    return toDetailView(rows[0]);
   }
 }
 

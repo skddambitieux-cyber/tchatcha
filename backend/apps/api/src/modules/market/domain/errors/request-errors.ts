@@ -24,6 +24,12 @@ export class QuoteIdempotencyMismatchError extends RequestError {
 export class QuoteNotFoundError extends RequestError {
   constructor() { super('Devis introuvable', 'quote_not_found', 404); }
 }
+export class QuoteVersionConflictError extends RequestError {
+  constructor() { super('Version du devis obsolète', 'quote_version_conflict', 409); }
+}
+export class QuoteIllegalTransitionError extends RequestError {
+  constructor() { super('Retrait du devis interdit', 'quote_illegal_transition', 409); }
+}
 export class RequestInvalidError extends RequestError {
   constructor(code = 'request_invalid') { super('Demande invalide', code, 422); }
 }

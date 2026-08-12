@@ -31,6 +31,7 @@ export interface QuoteDetailView extends QuoteView {
 }
 
 export type CreateQuoteResult = QuoteView | 'NOT_MATCHED' | 'ACTIVE_QUOTE_EXISTS' | 'IDEMPOTENCY_MISMATCH';
+export type WithdrawQuoteResult = QuoteDetailView | 'NOT_FOUND' | 'ILLEGAL_TRANSITION' | 'VERSION_CONFLICT';
 
 export interface QuoteRepositoryPort {
   isPublishableProfessional(userId: string): Promise<boolean>;
@@ -40,6 +41,7 @@ export interface QuoteRepositoryPort {
   listReceived(userId: string, requestId: string, limit: number, cursor?: { createdAt: string; id: string }): Promise<QuoteDetailView[] | 'NOT_FOUND'>;
   listSent(userId: string, limit: number, cursor?: { createdAt: string; id: string }): Promise<QuoteDetailView[]>;
   findAccessible(userId: string, quoteId: string): Promise<QuoteDetailView | null>;
+  withdraw(userId: string, quoteId: string, version: number): Promise<WithdrawQuoteResult>;
 }
 
 export const QuoteRepositoryPortToken = Symbol('QuoteRepositoryPort');

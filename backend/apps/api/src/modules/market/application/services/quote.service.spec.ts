@@ -8,7 +8,7 @@ const quote = { id: '30000000-0000-4000-8000-000000000001' } as QuoteView;
 describe('QuoteService', () => {
   const repository: jest.Mocked<QuoteRepositoryPort> = {
     isPublishableProfessional: jest.fn(), isActiveProfessional: jest.fn(), isActiveClient: jest.fn(),
-    create: jest.fn(), listReceived: jest.fn(), listSent: jest.fn(), findAccessible: jest.fn(),
+    create: jest.fn(), listReceived: jest.fn(), listSent: jest.fn(), findAccessible: jest.fn(), withdraw: jest.fn(),
   };
   const service = new QuoteService(repository);
 
@@ -33,6 +33,15 @@ describe('QuoteService', () => {
   it('limite le détail aux participants', async () => {
     repository.findAccessible.mockResolvedValue(null);
     await expect(service.detail('intrus', quote.id)).rejects.toMatchObject({ code: 'quote_not_found' });
+  });
+
+  it('retire avec version optimiste et mappe les conflits', async () => {
+    repository.withdraw.mockResolvedValue('VERSION_CONFLICT');
+    await expect(service.withdraw('pro-1', quote.id, 1)).rejects.toMatchObject({ code: 'quote_version_conflict' });
+    repository.withdraw.mockResolvedValue('ILLEGAL_TRANSITION');
+    await expect(service.withdraw('pro-1', quote.id, 1)).rejects.toMatchObject({ code: 'quote_illegal_transition' });
+    repository.withdraw.mockResolvedValue('NOT_FOUND');
+    await expect(service.withdraw('pro-1', quote.id, 1)).rejects.toMatchObject({ code: 'quote_not_found' });
   });
 
   it('normalise et empreinte le devis', async () => {

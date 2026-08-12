@@ -11,3 +11,8 @@ export class CreateQuoteDto {
   @IsOptional() @IsString() @Length(1, 2000)
   message?: string;
 }
+
+export class WithdrawQuoteDto {
+  @Type(() => Number) @IsInt() @Min(1)
+  version: number;
+}
