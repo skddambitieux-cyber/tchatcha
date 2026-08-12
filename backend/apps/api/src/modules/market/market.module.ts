@@ -11,14 +11,23 @@ import { RequestsController } from './interface/http/requests.controller';
 import { RequestService } from './application/services/request.service';
 import { RequestRepositoryPortToken } from './application/ports/request-repository.port';
 import { TypeOrmRequestRepository } from './infrastructure/repositories/typeorm-request.repository';
+import { MatchedRequestsController } from './interface/http/matched-requests.controller';
+import { MatchedRequestService } from './application/services/matched-request.service';
+import { MatchedRequestRepositoryPortToken } from './application/ports/matched-request-repository.port';
+import { TypeOrmMatchedRequestRepository } from './infrastructure/repositories/typeorm-matched-request.repository';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([ServiceRequest, Quote, Booking, Dispute]),
     AuthModule,
   ],
-  controllers: [RequestsController],
-  providers: [RequestService, { provide: RequestRepositoryPortToken, useClass: TypeOrmRequestRepository }],
+  controllers: [MatchedRequestsController, RequestsController],
+  providers: [
+    RequestService,
+    MatchedRequestService,
+    { provide: RequestRepositoryPortToken, useClass: TypeOrmRequestRepository },
+    { provide: MatchedRequestRepositoryPortToken, useClass: TypeOrmMatchedRequestRepository },
+  ],
   exports: [TypeOrmModule],
 })
 export class MarketModule {}

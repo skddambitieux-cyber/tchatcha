@@ -9,6 +9,9 @@ export class RequestNotFoundError extends RequestError {
 export class RequestForbiddenError extends RequestError {
   constructor() { super('Compte client actif requis', 'client_required', 403); }
 }
+export class ProfessionalRequiredError extends RequestError {
+  constructor() { super('Profil professionnel publiable requis', 'professional_required', 403); }
+}
 export class RequestInvalidError extends RequestError {
   constructor(code = 'request_invalid') { super('Demande invalide', code, 422); }
 }
