@@ -60,6 +60,14 @@ export class Transaction extends BaseEntity {
 
   @Column({ type: 'int', default: 1 })
   version: number;
+
+  /** Idempotence client : même clé + même hash → réponse d'origine (12 §7). */
+  @Column({ type: 'uuid', nullable: true })
+  client_idempotency_key: string | null;
+
+  /** SHA-256 du body normalisé (détection 409 idempotency_mismatch). */
+  @Column({ type: 'varchar', length: 64, nullable: true })
+  client_request_hash: string | null;
 }
 
 /**

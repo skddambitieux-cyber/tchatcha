@@ -39,8 +39,8 @@ export class RequestOtpDto {
   })
   phone: string;
 
-  @IsIn([OtpPurpose.REGISTER, OtpPurpose.LOGIN], {
-    message: 'purpose must be REGISTER or LOGIN',
+  @IsIn([OtpPurpose.REGISTER, OtpPurpose.LOGIN, OtpPurpose.PAYMENT], {
+    message: 'purpose must be REGISTER, LOGIN or PAYMENT',
   })
   purpose: OtpPurpose;
 

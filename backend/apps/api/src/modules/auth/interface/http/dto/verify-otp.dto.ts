@@ -28,8 +28,8 @@ export class VerifyOtpDto {
   @Matches(/^\d{6}$/, { message: 'code must be a 6-digit code' })
   code: string;
 
-  @IsIn([OtpPurpose.REGISTER, OtpPurpose.LOGIN], {
-    message: 'purpose must be REGISTER or LOGIN',
+  @IsIn([OtpPurpose.REGISTER, OtpPurpose.LOGIN, OtpPurpose.PAYMENT], {
+    message: 'purpose must be REGISTER, LOGIN or PAYMENT',
   })
   purpose: OtpPurpose;
 

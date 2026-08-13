@@ -79,4 +79,12 @@ export class EnvironmentVariables {
   @IsOptional()
   @IsString()
   S3_PUBLIC_URL_BASE?: string;
+
+  /**
+   * Secret HMAC des webhooks de paiement (12 §8). Défaut dev = simulateur
+   * (aucun opérateur réel dans le lot FCT-013) ; à remplacer en prod.
+   */
+  @IsOptional()
+  @IsString()
+  PAYMENT_WEBHOOK_SECRET = 'tchatcha-sim-webhook-secret';
 }
