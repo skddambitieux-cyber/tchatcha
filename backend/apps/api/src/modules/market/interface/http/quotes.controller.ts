@@ -4,7 +4,7 @@ import { CurrentUser } from '../../../auth/interface/http/decorators/current-use
 import { UserNotFoundError } from '../../../auth/domain/errors/auth-errors';
 import { QuoteService } from '../../application/services/quote.service';
 import { ListRequestsDto } from './dto/request.dto';
-import { CounterOfferDto, WithdrawQuoteDto } from './dto/quote.dto';
+import { AcceptQuoteDto, CounterOfferDto, WithdrawQuoteDto } from './dto/quote.dto';
 
 @Controller('quotes')
 @UseGuards(AuthGuard)
@@ -40,5 +40,12 @@ export class QuotesController {
   history(@CurrentUser() userId: string | undefined, @Param('id') id: string) {
     if (!userId) throw new UserNotFoundError();
     return this.quotes.history(userId, id);
+  }
+
+  @Post(':id/accept')
+  accept(@CurrentUser() userId: string | undefined, @Param('id') id: string,
+    @Headers('idempotency-key') key: string | undefined, @Body() dto: AcceptQuoteDto) {
+    if (!userId) throw new UserNotFoundError();
+    return this.quotes.accept(userId, id, key, dto);
   }
 }

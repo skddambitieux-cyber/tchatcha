@@ -10,6 +10,7 @@ describe('QuoteService', () => {
     isPublishableProfessional: jest.fn(), isActiveProfessional: jest.fn(), isActiveClient: jest.fn(),
     create: jest.fn(), listReceived: jest.fn(), listSent: jest.fn(), findAccessible: jest.fn(), withdraw: jest.fn(),
     counter: jest.fn(), history: jest.fn(),
+    accept: jest.fn(),
   };
   const service = new QuoteService(repository);
 
@@ -58,6 +59,15 @@ describe('QuoteService', () => {
   it('masque l’historique aux tiers', async () => {
     repository.history.mockResolvedValue('NOT_FOUND');
     await expect(service.history('intrus', quote.id)).rejects.toMatchObject({ code: 'quote_not_found' });
+  });
+
+  it('sélectionne avec les deux versions et mappe les transitions', async () => {
+    repository.accept.mockResolvedValue('ILLEGAL_TRANSITION');
+    await expect(service.accept('client-1', quote.id, key, { version: 1, request_version: 3 }))
+      .rejects.toMatchObject({ code: 'quote_acceptance_conflict' });
+    expect(repository.accept).toHaveBeenCalledWith('client-1', quote.id, expect.objectContaining({
+      quoteVersion: 1, requestVersion: 3, requestHash: expect.stringMatching(/^[0-9a-f]{64}$/),
+    }));
   });
 
   it('normalise et empreinte le devis', async () => {

@@ -21,3 +21,11 @@ export class CounterOfferDto extends CreateQuoteDto {
   @Type(() => Number) @IsInt() @Min(1)
   version: number;
 }
+
+export class AcceptQuoteDto {
+  @Type(() => Number) @IsInt() @Min(1)
+  version: number;
+
+  @Type(() => Number) @IsInt() @Min(1)
+  request_version: number;
+}

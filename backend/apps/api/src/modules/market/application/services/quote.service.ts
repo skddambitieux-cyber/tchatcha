@@ -1,9 +1,9 @@
 import { createHash } from 'node:crypto';
 import { Inject, Injectable } from '@nestjs/common';
 import { QuoteRepositoryPortToken } from '../ports/quote-repository.port';
-import type { CounterOfferCommand, CreateQuoteCommand, QuoteDetailView, QuoteRepositoryPort } from '../ports/quote-repository.port';
-import { ProfessionalRequiredError, QuoteActiveExistsError, QuoteIdempotencyMismatchError, QuoteIllegalTransitionError, QuoteInvalidError, QuoteNegotiationLimitError, QuoteNotFoundError, QuoteSameActorError, QuoteVersionConflictError, RequestForbiddenError, RequestNotFoundError } from '../../domain/errors/request-errors';
-import type { CounterOfferDto, CreateQuoteDto } from '../../interface/http/dto/quote.dto';
+import type { AcceptQuoteCommand, CounterOfferCommand, CreateQuoteCommand, QuoteDetailView, QuoteRepositoryPort } from '../ports/quote-repository.port';
+import { ProfessionalRequiredError, QuoteAcceptanceConflictError, QuoteActiveExistsError, QuoteIdempotencyMismatchError, QuoteIllegalTransitionError, QuoteInvalidError, QuoteNegotiationLimitError, QuoteNotFoundError, QuoteSameActorError, QuoteVersionConflictError, RequestForbiddenError, RequestNotFoundError } from '../../domain/errors/request-errors';
+import type { AcceptQuoteDto, CounterOfferDto, CreateQuoteDto } from '../../interface/http/dto/quote.dto';
 
 @Injectable()
 export class QuoteService {
@@ -83,6 +83,20 @@ export class QuoteService {
     const rows = await this.repository.history(userId, quoteId);
     if (rows === 'NOT_FOUND') throw new QuoteNotFoundError();
     return { items: rows };
+  }
+
+  async accept(userId: string, quoteId: string, idempotencyKey: string | undefined, dto: AcceptQuoteDto) {
+    if (!(await this.repository.isActiveClient(userId))) throw new RequestForbiddenError();
+    if (!idempotencyKey || !/^[0-9a-f-]{36}$/i.test(idempotencyKey)) throw new QuoteInvalidError('idempotency_key_required');
+    const normalized = { quote_id: quoteId, version: dto.version, request_version: dto.request_version };
+    const command: AcceptQuoteCommand = { quoteVersion: dto.version, requestVersion: dto.request_version,
+      idempotencyKey, requestHash: createHash('sha256').update(JSON.stringify(normalized)).digest('hex') };
+    const result = await this.repository.accept(userId, quoteId, command);
+    if (result === 'NOT_FOUND') throw new QuoteNotFoundError();
+    if (result === 'ILLEGAL_TRANSITION') throw new QuoteAcceptanceConflictError();
+    if (result === 'VERSION_CONFLICT') throw new QuoteVersionConflictError();
+    if (result === 'IDEMPOTENCY_MISMATCH') throw new QuoteIdempotencyMismatchError();
+    return result;
   }
 
   private page(rows: QuoteDetailView[], limit: number) {

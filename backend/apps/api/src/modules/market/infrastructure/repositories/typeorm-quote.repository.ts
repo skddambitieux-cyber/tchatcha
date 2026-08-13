@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { DataSource, EntityManager } from 'typeorm';
-import type { CounterOfferCommand, CreateQuoteCommand, CreateQuoteResult, QuoteDetailView, QuoteRepositoryPort, QuoteView } from '../../application/ports/quote-repository.port';
+import type { AcceptQuoteCommand, CounterOfferCommand, CreateQuoteCommand, CreateQuoteResult, QuoteDetailView, QuoteRepositoryPort, QuoteView } from '../../application/ports/quote-repository.port';
 
 const SELECT_QUOTE = `SELECT q.id, q.request_id, q.professional_id, q.created_by, p.user_id AS professional_user_id, q.price,
   q.currency, q.duration_days, q.message, q.status, q.version,
@@ -213,6 +213,45 @@ export class TypeOrmQuoteRepository implements QuoteRepositoryPort {
       ${SELECT_DETAIL} JOIN descendants chain ON chain.id=q.id
       WHERE q.deleted_at IS NULL ORDER BY q.created_at ASC,q.id ASC`, [quoteId]);
     return rows.map(toDetailView);
+  }
+
+  async accept(userId: string, quoteId: string, command: AcceptQuoteCommand) {
+    return this.dataSource.transaction('SERIALIZABLE', async (manager) => {
+      const target = await manager.query(`SELECT q.request_id FROM market.quotes q
+        JOIN market.service_requests r ON r.id=q.request_id WHERE q.id=$1 AND r.client_id=$2`, [quoteId, userId]);
+      if (!target[0]) return 'NOT_FOUND' as const;
+      await manager.query(`SELECT pg_advisory_xact_lock(hashtext($1))`, [`accept:${target[0].request_id}`]);
+      const prior = await manager.query(`SELECT id,acceptance_request_hash FROM market.quotes
+        WHERE accepted_by=$1 AND acceptance_idempotency_key=$2`, [userId, command.idempotencyKey]);
+      if (prior[0]) {
+        if (prior[0].acceptance_request_hash !== command.requestHash) return 'IDEMPOTENCY_MISMATCH' as const;
+        return this.readDetail(manager, prior[0].id);
+      }
+      await manager.query(`UPDATE market.service_requests SET status='EXPIRED',version=version+1,updated_at=now()
+        WHERE id=$1 AND status IN ('OPEN','QUOTED','NEGOTIATING') AND deleted_at IS NULL AND expires_at<=now()`,
+      [target[0].request_id]);
+      await manager.query(`UPDATE market.quotes q SET status='WITHDRAWN',version=q.version+1,updated_at=now()
+        FROM market.service_requests r WHERE q.request_id=r.id AND r.id=$1 AND r.status='EXPIRED'
+          AND q.status='PENDING' AND q.deleted_at IS NULL`, [target[0].request_id]);
+      const current = await manager.query(`SELECT q.status,q.version,q.created_by,p.user_id AS professional_user_id,
+          r.status AS request_status,r.version AS request_version
+        FROM market.quotes q JOIN market.service_requests r ON r.id=q.request_id
+        JOIN pros.profiles p ON p.id=q.professional_id
+        WHERE q.id=$1 AND r.client_id=$2 AND q.deleted_at IS NULL FOR UPDATE OF q,r`, [quoteId, userId]);
+      if (!current[0]) return 'NOT_FOUND' as const;
+      if (Number(current[0].version) !== command.quoteVersion ||
+          Number(current[0].request_version) !== command.requestVersion) return 'VERSION_CONFLICT' as const;
+      if (current[0].status !== 'PENDING' || !['QUOTED', 'NEGOTIATING'].includes(String(current[0].request_status)) ||
+          current[0].created_by !== current[0].professional_user_id) return 'ILLEGAL_TRANSITION' as const;
+      await manager.query(`UPDATE market.quotes SET status='ACCEPTED',accepted_at=now(),accepted_by=$2,
+        acceptance_idempotency_key=$3,acceptance_request_hash=$4,version=version+1,updated_at=now() WHERE id=$1`,
+      [quoteId, userId, command.idempotencyKey, command.requestHash]);
+      await manager.query(`UPDATE market.quotes SET status='REJECTED',version=version+1,updated_at=now()
+        WHERE request_id=$1 AND id<>$2 AND status='PENDING' AND deleted_at IS NULL`, [target[0].request_id, quoteId]);
+      await manager.query(`UPDATE market.service_requests SET status='SELECTED',version=version+1,updated_at=now()
+        WHERE id=$1`, [target[0].request_id]);
+      return this.readDetail(manager, quoteId);
+    });
   }
 
   private async expireRequest(requestId: string) {

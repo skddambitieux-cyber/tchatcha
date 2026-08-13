@@ -39,6 +39,11 @@ export interface CounterOfferCommand {
 }
 export type CounterOfferResult = QuoteDetailView | 'NOT_FOUND' | 'ILLEGAL_TRANSITION' |
   'VERSION_CONFLICT' | 'SAME_ACTOR' | 'LIMIT_REACHED' | 'IDEMPOTENCY_MISMATCH';
+export interface AcceptQuoteCommand {
+  quoteVersion: number; requestVersion: number; idempotencyKey: string; requestHash: string;
+}
+export type AcceptQuoteResult = QuoteDetailView | 'NOT_FOUND' | 'ILLEGAL_TRANSITION' |
+  'VERSION_CONFLICT' | 'IDEMPOTENCY_MISMATCH';
 
 export interface QuoteRepositoryPort {
   isPublishableProfessional(userId: string): Promise<boolean>;
@@ -51,6 +56,7 @@ export interface QuoteRepositoryPort {
   withdraw(userId: string, quoteId: string, version: number): Promise<WithdrawQuoteResult>;
   counter(userId: string, quoteId: string, command: CounterOfferCommand): Promise<CounterOfferResult>;
   history(userId: string, quoteId: string): Promise<QuoteDetailView[] | 'NOT_FOUND'>;
+  accept(userId: string, quoteId: string, command: AcceptQuoteCommand): Promise<AcceptQuoteResult>;
 }
 
 export const QuoteRepositoryPortToken = Symbol('QuoteRepositoryPort');

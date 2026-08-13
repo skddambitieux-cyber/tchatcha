@@ -171,19 +171,49 @@ describe('Lot 3C — création initiale de devis', () => {
     expect(request[0].status).toBe('NEGOTIATING');
   });
 
+  it('sélectionne irréversiblement l’offre pro et rejette les concurrentes', async () => {
+    const competitor = await seedUser(`${PREFIX}00005`, 'PROFESSIONAL');
+    const competitorProId = randomUUID();
+    const competitorQuoteId = randomUUID();
+    await db.query(`INSERT INTO pros.profiles
+      (id,user_id,business_name,status,verified,currency,country_code,created_at,updated_at)
+      VALUES($1,$2,'Pro concurrent','ACTIVE',false,'XOF','BJ',now(),now())`, [competitorProId, competitor.id]);
+    await db.query(`INSERT INTO market.quotes
+      (id,request_id,professional_id,created_by,price,currency,status,version,created_at,updated_at)
+      VALUES($1,$2,$3,$4,10500,'XOF','PENDING',1,now(),now())`,
+    [competitorQuoteId, matchedRequestId, competitorProId, competitor.id]);
+    const key = randomUUID();
+    const accepted = await app.http.post(`/api/v1/quotes/${quoteId}/accept`).set(auth(clientToken))
+      .set('Idempotency-Key', key).send({ version: 1, request_version: 3 }).expect(201);
+    expect(accepted.body).toMatchObject({ id: quoteId, status: 'ACCEPTED', version: 2, offered_by: 'PROFESSIONAL' });
+    const replay = await app.http.post(`/api/v1/quotes/${quoteId}/accept`).set(auth(clientToken))
+      .set('Idempotency-Key', key).send({ version: 1, request_version: 3 }).expect(201);
+    expect(replay.body.id).toBe(quoteId);
+    const state = await db.query(`SELECT r.status AS request_status,q.status AS competitor_status
+      FROM market.service_requests r JOIN market.quotes q ON q.id=$2 WHERE r.id=$1`,
+    [matchedRequestId, competitorQuoteId]);
+    expect(state[0]).toMatchObject({ request_status: 'SELECTED', competitor_status: 'REJECTED' });
+    await app.http.post(`/api/v1/quotes/${quoteId}/accept`).set(auth(clientToken))
+      .set('Idempotency-Key', randomUUID()).send({ version: 2, request_version: 4 }).expect(409);
+  });
+
   it('retire son devis avec version optimiste et interdit les répétitions ou tiers', async () => {
+    const withdrawRequestId = await seedRequest(2.43, 6.37);
+    const created = await app.http.post(`/api/v1/requests/${withdrawRequestId}/quotes`).set(auth(proToken))
+      .set('Idempotency-Key', randomUUID()).send(quoteBody).expect(201);
+    const withdrawQuoteId = created.body.id as string;
     const other = await seedUser(`${PREFIX}00004`, 'PROFESSIONAL');
     await db.query(`INSERT INTO pros.profiles
       (id,user_id,business_name,status,verified,currency,country_code,created_at,updated_at)
       VALUES($1,$2,'Autre pro','ACTIVE',false,'XOF','BJ',now(),now())`, [randomUUID(), other.id]);
-    await app.http.post(`/api/v1/quotes/${quoteId}/withdraw`).set(auth(other.token))
+    await app.http.post(`/api/v1/quotes/${withdrawQuoteId}/withdraw`).set(auth(other.token))
       .send({ version: 1 }).expect(404);
-    await app.http.post(`/api/v1/quotes/${quoteId}/withdraw`).set(auth(proToken))
+    await app.http.post(`/api/v1/quotes/${withdrawQuoteId}/withdraw`).set(auth(proToken))
       .send({ version: 99 }).expect(409);
-    const withdrawn = await app.http.post(`/api/v1/quotes/${quoteId}/withdraw`).set(auth(proToken))
+    const withdrawn = await app.http.post(`/api/v1/quotes/${withdrawQuoteId}/withdraw`).set(auth(proToken))
       .send({ version: 1 }).expect(201);
-    expect(withdrawn.body).toMatchObject({ id: quoteId, status: 'WITHDRAWN', version: 2 });
-    await app.http.post(`/api/v1/quotes/${quoteId}/withdraw`).set(auth(proToken))
+    expect(withdrawn.body).toMatchObject({ id: withdrawQuoteId, status: 'WITHDRAWN', version: 2 });
+    await app.http.post(`/api/v1/quotes/${withdrawQuoteId}/withdraw`).set(auth(proToken))
       .send({ version: 2 }).expect(409);
   });
 });

@@ -36,6 +36,9 @@ export class QuoteSameActorError extends RequestError {
 export class QuoteNegotiationLimitError extends RequestError {
   constructor() { super('Limite de contre-offres atteinte', 'counter_offer_limit_reached', 409); }
 }
+export class QuoteAcceptanceConflictError extends RequestError {
+  constructor() { super('Ce devis ne peut pas être sélectionné', 'quote_acceptance_conflict', 409); }
+}
 export class RequestInvalidError extends RequestError {
   constructor(code = 'request_invalid') { super('Demande invalide', code, 422); }
 }
