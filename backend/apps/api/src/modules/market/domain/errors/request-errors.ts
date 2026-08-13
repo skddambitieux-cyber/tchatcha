@@ -51,3 +51,9 @@ export class RequestVersionConflictError extends RequestError {
 export class RequestIllegalTransitionError extends RequestError {
   constructor() { super('Transition de demande interdite', 'illegal_transition', 409); }
 }
+export class BookingInvalidError extends RequestError { constructor(code='booking_invalid'){super('Réservation invalide',code,422);} }
+export class BookingNotFoundError extends RequestError { constructor(){super('Réservation impossible','booking_not_found',404);} }
+export class BookingIllegalTransitionError extends RequestError { constructor(){super('Réservation interdite','booking_illegal_transition',409);} }
+export class BookingVersionConflictError extends RequestError { constructor(){super('Version obsolète','booking_version_conflict',409);} }
+export class BookingSlotConflictError extends RequestError { constructor(){super('Ce créneau vient d’être réservé','slot_conflict',409);} }
+export class BookingIdempotencyMismatchError extends RequestError { constructor(){super('Clé réutilisée avec un contenu différent','idempotency_mismatch',409);} }

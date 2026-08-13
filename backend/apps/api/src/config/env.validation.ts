@@ -16,6 +16,8 @@ import {
 import { Type } from 'class-transformer';
 
 export class EnvironmentVariables {
+  @IsOptional() @IsString()
+  MARKET_TIMEZONE = 'Africa/Lagos';
   @IsString()
   NODE_ENV = 'development';
 

@@ -26,6 +26,7 @@ export class Booking extends BaseEntity {
 
   @Column({ type: 'uuid' })
   quote_id: string;
+  @Column({ type: 'uuid' }) slot_id: string;
 
   @Column({ type: 'uuid' })
   client_id: string;
@@ -36,8 +37,9 @@ export class Booking extends BaseEntity {
   @Column({ type: 'timestamptz' })
   scheduled_start: Date;
 
-  @Column({ type: 'timestamptz', nullable: true })
-  scheduled_end: Date | null;
+  @Column({ type: 'timestamptz' }) scheduled_end: Date;
+  @Column({ type: 'numeric', precision: 14, scale: 2 }) price: number;
+  @Column({ type: 'char', length: 3 }) currency: string;
 
   @Column({ type: 'varchar', length: 32 })
   status: BookingStatus;
@@ -48,7 +50,12 @@ export class Booking extends BaseEntity {
   @Column({ type: 'timestamptz', nullable: true })
   pro_confirmed_at: Date | null;
 
-  @Column({ type: 'geometry', spatialFeatureType: 'Point', srid: 4326, nullable: true })
+  @Column({
+    type: 'geometry',
+    spatialFeatureType: 'Point',
+    srid: 4326,
+    nullable: true,
+  })
   location: unknown;
 
   @Column({ type: 'text', nullable: true })

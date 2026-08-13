@@ -19,20 +19,36 @@ import { QuoteService } from './application/services/quote.service';
 import { QuoteRepositoryPortToken } from './application/ports/quote-repository.port';
 import { TypeOrmQuoteRepository } from './infrastructure/repositories/typeorm-quote.repository';
 import { QuotesController } from './interface/http/quotes.controller';
+import { BookingsController } from './interface/http/bookings.controller';
+import { ProfessionalSlotsController } from './interface/http/professional-slots.controller';
+import { BookingService } from './application/services/booking.service';
+import { BookingRepositoryPortToken } from './application/ports/booking-repository.port';
+import { TypeOrmBookingRepository } from './infrastructure/repositories/typeorm-booking.repository';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([ServiceRequest, Quote, Booking, Dispute]),
     AuthModule,
   ],
-  controllers: [MatchedRequestsController, QuotesController, RequestsController],
+  controllers: [
+    MatchedRequestsController,
+    QuotesController,
+    RequestsController,
+    BookingsController,
+    ProfessionalSlotsController,
+  ],
   providers: [
     RequestService,
     MatchedRequestService,
     QuoteService,
+    BookingService,
     { provide: RequestRepositoryPortToken, useClass: TypeOrmRequestRepository },
-    { provide: MatchedRequestRepositoryPortToken, useClass: TypeOrmMatchedRequestRepository },
+    {
+      provide: MatchedRequestRepositoryPortToken,
+      useClass: TypeOrmMatchedRequestRepository,
+    },
     { provide: QuoteRepositoryPortToken, useClass: TypeOrmQuoteRepository },
+    { provide: BookingRepositoryPortToken, useClass: TypeOrmBookingRepository },
   ],
   exports: [TypeOrmModule],
 })
