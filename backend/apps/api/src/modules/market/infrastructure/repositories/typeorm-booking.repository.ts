@@ -3,7 +3,11 @@ import { DataSource, EntityManager } from 'typeorm';
 import type {
   BookingRepositoryPort,
   BookingView,
+  ConfirmProgressResult,
   CreateBookingCommand,
+  FinalizeResult,
+  ReleaseIntent,
+  ReleaseOutcome,
 } from '../../application/ports/booking-repository.port';
 @Injectable()
 export class TypeOrmBookingRepository implements BookingRepositoryPort {
@@ -98,6 +102,188 @@ export class TypeOrmBookingRepository implements BookingRepositoryPort {
       }
     });
   }
+  async confirm(bookingId: string, userId: string): Promise<ConfirmProgressResult> {
+    return this.db.transaction(async (m) => {
+      const exists = (
+        await m.query(`SELECT 1 FROM market.bookings WHERE id=$1`, [bookingId])
+      )[0];
+      if (!exists) return { kind: 'NOT_FOUND' } as const;
+      const row = (
+        await m.query(
+          `SELECT b.id,b.status,b.client_confirmed_at,b.pro_confirmed_at,
+                  b.price,b.currency,
+                  c.commission_rate,
+                  ROUND(b.price*c.commission_rate/100,2) AS commission_amount,
+                  b.price-ROUND(b.price*c.commission_rate/100,2) AS net_amount,
+                  t.id AS txn_id, t.country_code,
+                  (SELECT u.phone FROM users.users u
+                    WHERE u.id=(SELECT p.user_id FROM pros.profiles p WHERE p.id=b.professional_id)) AS pro_phone,
+                  EXISTS(SELECT 1 FROM pros.profiles p WHERE p.id=b.professional_id AND p.user_id=$2) AS is_pro
+           FROM market.bookings b
+           JOIN market.service_requests r ON r.id=b.request_id
+           JOIN pros.categories c ON c.id=r.category_id
+           LEFT JOIN pay.transactions t ON t.booking_id=b.id AND t.status='SUCCEEDED'
+           WHERE b.id=$1 AND (b.client_id=$2
+             OR EXISTS(SELECT 1 FROM pros.profiles p WHERE p.id=b.professional_id AND p.user_id=$2))
+           FOR UPDATE OF b`,
+          [bookingId, userId],
+        )
+      )[0];
+      if (!row) return { kind: 'FORBIDDEN' } as const;
+      if (row.status === 'COMPLETED')
+        return { kind: 'ALREADY_COMPLETED', view: await this.read(m, bookingId) };
+      if (row.status !== 'IN_PROGRESS' || !row.txn_id)
+        return { kind: 'ILLEGAL_STATE', view: await this.read(m, bookingId) };
+      const roleCol: 'client_confirmed_at' | 'pro_confirmed_at' = row.is_pro
+        ? 'pro_confirmed_at'
+        : 'client_confirmed_at';
+      const otherCol: 'client_confirmed_at' | 'pro_confirmed_at' = row.is_pro
+        ? 'client_confirmed_at'
+        : 'pro_confirmed_at';
+      if (row[roleCol]) {
+        if (row[otherCol])
+          return {
+            kind: 'RESUME_RELEASE',
+            view: await this.read(m, bookingId),
+            release: this.buildIntent(row),
+          };
+        return {
+          kind: 'ALREADY_CONFIRMED',
+          view: await this.read(m, bookingId),
+        };
+      }
+      const up = await m.query(
+        `UPDATE market.bookings SET ${roleCol}=now(),updated_at=now() WHERE id=$1 AND ${roleCol} IS NULL`,
+        [bookingId],
+      );
+      if (!up[0][0]) {
+        const s = (
+          await m.query(
+            `SELECT client_confirmed_at,pro_confirmed_at FROM market.bookings WHERE id=$1`,
+            [bookingId],
+          )
+        )[0];
+        if (s.client_confirmed_at && s.pro_confirmed_at)
+          return {
+            kind: 'RESUME_RELEASE',
+            view: await this.read(m, bookingId),
+            release: this.buildIntent(row),
+          };
+        return {
+          kind: 'ALREADY_CONFIRMED',
+          view: await this.read(m, bookingId),
+        };
+      }
+      const after = (
+        await m.query(
+          `SELECT client_confirmed_at,pro_confirmed_at FROM market.bookings WHERE id=$1`,
+          [bookingId],
+        )
+      )[0];
+      // Vue lue APRÈS l'UPDATE du timestamp (état frais, y compris le rejeu).
+      const fresh = await this.read(m, bookingId);
+      if (after.client_confirmed_at && after.pro_confirmed_at)
+        return { kind: 'SECOND_CONFIRMED', view: fresh, release: this.buildIntent(row) };
+      return { kind: 'FIRST_CONFIRMED', view: fresh };
+    });
+  }
+  async finalize(
+    bookingId: string,
+    intent: ReleaseIntent,
+    outcome: ReleaseOutcome,
+  ): Promise<FinalizeResult> {
+    return this.db.transaction(async (m) => {
+      const row = (
+        await m.query(
+          `SELECT status,client_confirmed_at,pro_confirmed_at FROM market.bookings WHERE id=$1 FOR UPDATE`,
+          [bookingId],
+        )
+      )[0];
+      if (!row || row.status === 'COMPLETED')
+        return { kind: 'ALREADY_COMPLETED', view: await this.read(m, bookingId) };
+      if (
+        row.status !== 'IN_PROGRESS' ||
+        !row.client_confirmed_at ||
+        !row.pro_confirmed_at
+      )
+        return { kind: 'RELEASE_FAILED', view: await this.read(m, bookingId) };
+      const view = await this.read(m, bookingId);
+      if (outcome.status === 'FAILED') {
+        await m.query(
+          `INSERT INTO pay.provider_operations(transaction_id,provider_code,operation_type,status,amount,response_payload,initiated_at,completed_at)
+           VALUES($1,$2,'PAYOUT','FAILED',$3,$4::jsonb,now(),now())`,
+          [
+            intent.transactionId,
+            outcome.providerCode,
+            intent.amount,
+            JSON.stringify({ failure_reason: outcome.failureReason ?? null }),
+          ],
+        );
+        return { kind: 'RELEASE_FAILED', view };
+      }
+      try {
+        await m.query(
+          `INSERT INTO pay.provider_operations(transaction_id,provider_code,operation_type,status,amount,external_ref,initiated_at,completed_at)
+           VALUES($1,$2,'PAYOUT','SUCCEEDED',$3,$4,now(),now())`,
+          [
+            intent.transactionId,
+            outcome.providerCode,
+            intent.amount,
+            outcome.externalRef ?? null,
+          ],
+        );
+        await m.query(
+          `INSERT INTO pay.commissions(transaction_id,rule_code,rate,amount,computed_at)
+           VALUES($1,'CATEGORY_RATE',$2,$3,now())`,
+          [
+            intent.transactionId,
+            intent.commissionRate,
+            intent.commissionAmount,
+          ],
+        );
+        const bk = await m.query(
+          `UPDATE market.bookings SET status='COMPLETED',version=version+1,updated_at=now()
+           WHERE id=$1 AND status='IN_PROGRESS'
+             AND client_confirmed_at IS NOT NULL AND pro_confirmed_at IS NOT NULL
+           RETURNING id`,
+          [bookingId],
+        );
+        if (!bk[0][0]) throw new RollbackSignal('BOOKING_ALREADY_COMPLETED');
+        return { kind: 'COMPLETED', view: await this.read(m, bookingId) };
+      } catch (e) {
+        if (
+          (e as { constraint?: string }).constraint ===
+          'uq_provider_ops_release_once'
+        ) {
+          // Une release SUCCEEDED existe déjà (fenêtre de crash) : l'opération
+          // est la preuve de libération — la terminer, jamais en refaire une.
+          await m.query(
+            `UPDATE market.bookings SET status='COMPLETED',version=version+1,updated_at=now()
+             WHERE id=$1 AND status='IN_PROGRESS'
+               AND client_confirmed_at IS NOT NULL AND pro_confirmed_at IS NOT NULL`,
+            [bookingId],
+          );
+          return { kind: 'ALREADY_COMPLETED', view: await this.read(m, bookingId) };
+        }
+        throw e;
+      }
+    });
+  }
+  private buildIntent(row: Record<string, unknown>): ReleaseIntent {
+    return {
+      bookingId: String(row.id),
+      transactionId: String(row.txn_id),
+      // Clé d'idempotence déterministe : l'identité du paiement. Stable pour le
+      // booking (une seule transaction SUCCEEDED), identique à chaque rejeu.
+      idempotencyKey: `payout:${String(row.txn_id)}`,
+      amount: Number(row.net_amount),
+      currency: String(row.currency),
+      countryCode: String(row.country_code),
+      beneficiaryPhone: row.pro_phone ? String(row.pro_phone) : null,
+      commissionRate: Number(row.commission_rate),
+      commissionAmount: Number(row.commission_amount),
+    };
+  }
   private async read(m: EntityManager, id: string): Promise<BookingView> {
     const r = (
       await m.query(
@@ -117,9 +303,22 @@ export class TypeOrmBookingRepository implements BookingRepositoryPort {
       scheduled_start: new Date(r.scheduled_start).toISOString(),
       scheduled_end: new Date(r.scheduled_end).toISOString(),
       status: String(r.status),
+      client_confirmed_at: r.client_confirmed_at
+        ? new Date(r.client_confirmed_at).toISOString()
+        : null,
+      pro_confirmed_at: r.pro_confirmed_at
+        ? new Date(r.pro_confirmed_at).toISOString()
+        : null,
       price: Number(r.price),
       currency: String(r.currency),
       version: Number(r.version),
     };
+  }
+}
+
+class RollbackSignal extends Error {
+  constructor(readonly reason: string) {
+    super(`rollback: ${reason}`);
+    this.name = 'RollbackSignal';
   }
 }

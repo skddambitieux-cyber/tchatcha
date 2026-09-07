@@ -11,6 +11,8 @@ import {
   GatewayCharge,
   GatewayChargeInitiated,
   GatewayConfirmationEvent,
+  GatewayRelease,
+  GatewayReleaseResult,
   PaymentGatewayPort,
 } from '../../application/ports/payment-gateway.port';
 
@@ -22,6 +24,19 @@ export const SIMULATOR_PROVIDER_CODE = 'SIMULATOR';
 export class SimulatorPaymentGateway implements PaymentGatewayPort {
   /** Référence fournisseur émise à l'initiate, par référence locale (stateless sinon). */
   private readonly initiatedRefs = new Map<string, string>();
+
+  /**
+   * Idempotence release (bug.md FCT-014) : par clé d'idempotence. Une fois
+   * libérée, un retry (même clé) reçoit la MÊME external_ref — jamais une
+   * deuxième libération logique. Reproduit le contrat d'un vrai provider.
+   */
+  private readonly releasedRefs = new Map<string, string>();
+
+  /** Seam de test (FCT-014) : simule un fournisseur en panne pour la release. */
+  private failReleases = false;
+  setFailReleases(v: boolean) {
+    this.failReleases = v;
+  }
 
   async initiate(charge: GatewayCharge): Promise<GatewayChargeInitiated> {
     const externalRef = `SIM-${charge.reference}-${randomUUID().slice(0, 8)}`;
@@ -49,6 +64,30 @@ export class SimulatorPaymentGateway implements PaymentGatewayPort {
         payer_phone: charge.payerPhone,
         reference: charge.reference,
       },
+    };
+  }
+
+  async release(release: GatewayRelease): Promise<GatewayReleaseResult> {
+    if (this.failReleases) {
+      return {
+        status: 'FAILED',
+        providerCode: SIMULATOR_PROVIDER_CODE,
+        failureReason: 'simulated_provider_breakdown',
+      };
+    }
+    const prior = this.releasedRefs.get(release.idempotencyKey);
+    if (prior)
+      return {
+        status: 'SUCCEEDED',
+        providerCode: SIMULATOR_PROVIDER_CODE,
+        externalRef: prior,
+      };
+    const externalRef = `REL-${release.reference}-${randomUUID().slice(0, 8)}`;
+    this.releasedRefs.set(release.idempotencyKey, externalRef);
+    return {
+      status: 'SUCCEEDED',
+      providerCode: SIMULATOR_PROVIDER_CODE,
+      externalRef,
     };
   }
 }

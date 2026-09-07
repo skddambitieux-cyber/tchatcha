@@ -172,6 +172,16 @@ export class TypeOrmPayRepository implements PayRepositoryPort {
           [paymentId],
         );
         if (!req[0][0]) throw new RollbackSignal('REQUEST_ILLEGRAL_TRANSITION');
+        // FCT-014 (RF-BK-01) : le paiement réussi entre le booking en
+        // prestation, atomiquement avec SELECTED → PAID (06-schema-base L212).
+        const bk = await m.query(
+          `UPDATE market.bookings b SET status='IN_PROGRESS',version=b.version+1,updated_at=now()
+           FROM pay.transactions t
+           WHERE t.id=$1 AND b.id=t.booking_id AND b.status='CONFIRMED'
+           RETURNING b.id`,
+          [paymentId],
+        );
+        if (!bk[0][0]) throw new RollbackSignal('BOOKING_ILLEGAL_TRANSITION');
         return 'CONFIRMED' as const;
       }
       const s = (

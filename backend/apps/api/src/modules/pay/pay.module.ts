@@ -28,6 +28,6 @@ import { PaymentsWebhookController } from './interface/http/payments-webhook.con
     { provide: PayRepositoryPortToken, useClass: TypeOrmPayRepository },
     { provide: PaymentGatewayPortToken, useClass: SimulatorPaymentGateway },
   ],
-  exports: [TypeOrmModule],
+  exports: [TypeOrmModule, PaymentGatewayPortToken],
 })
 export class PayModule {}

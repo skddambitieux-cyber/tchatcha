@@ -7,6 +7,7 @@ import { ServiceRequest } from './domain/entities/service-request.entity';
 import { Quote } from './domain/entities/quote.entity';
 import { Booking, Dispute } from './domain/entities/booking-dispute.entity';
 import { AuthModule } from '../auth/auth.module';
+import { PayModule } from '../pay/pay.module';
 import { RequestsController } from './interface/http/requests.controller';
 import { RequestService } from './application/services/request.service';
 import { RequestRepositoryPortToken } from './application/ports/request-repository.port';
@@ -29,6 +30,7 @@ import { TypeOrmBookingRepository } from './infrastructure/repositories/typeorm-
   imports: [
     TypeOrmModule.forFeature([ServiceRequest, Quote, Booking, Dispute]),
     AuthModule,
+    PayModule,
   ],
   controllers: [
     MatchedRequestsController,

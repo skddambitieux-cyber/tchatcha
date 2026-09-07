@@ -238,7 +238,7 @@ describe('Lot FCT-013 payments', () => {
       .send({ code: CODE })
       .expect(404);
   });
-  it('verify : mauvais OTP → 401 ; bon OTP → SUCCEEDED + request PAID (atomique), booking CONFIRMED', async () => {
+  it('verify : mauvais OTP → 401 ; bon OTP → SUCCEEDED + request PAID + booking IN_PROGRESS (atomique)', async () => {
     await app.http
       .post(`/api/v1/payments/${paymentId}/verify`)
       .set(auth())
@@ -269,7 +269,7 @@ describe('Lot FCT-013 payments', () => {
     expect(txn.status).toBe('SUCCEEDED');
     expect(op.status).toBe('SUCCEEDED');
     expect(req.status).toBe('PAID');
-    expect(booking.status).toBe('CONFIRMED');
+    expect(booking.status).toBe('IN_PROGRESS');
     // Re-verify idempotent.
     const again = await app.http
       .post(`/api/v1/payments/${paymentId}/verify`)

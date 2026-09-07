@@ -57,3 +57,6 @@ export class BookingIllegalTransitionError extends RequestError { constructor(){
 export class BookingVersionConflictError extends RequestError { constructor(){super('Version obsolète','booking_version_conflict',409);} }
 export class BookingSlotConflictError extends RequestError { constructor(){super('Ce créneau vient d’être réservé','slot_conflict',409);} }
 export class BookingIdempotencyMismatchError extends RequestError { constructor(){super('Clé réutilisée avec un contenu différent','idempotency_mismatch',409);} }
+export class BookingConfirmForbiddenError extends RequestError { constructor(){super('Confirmation réservée aux participants de la réservation','forbidden',403);} }
+export class BookingConfirmIllegalStateError extends RequestError { constructor(){super('Réservation non confirmable en l’état','booking_confirmed_invalid_state',409);} }
+export class BookingReleaseFailedError extends RequestError { constructor(){super('Libération du paiement impossible, réessayez','release_failed',502);} }
