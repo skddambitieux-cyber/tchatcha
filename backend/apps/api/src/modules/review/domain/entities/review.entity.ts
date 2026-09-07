@@ -48,6 +48,18 @@ export class Review extends BaseEntity {
   @Column({ type: 'text', nullable: true })
   comment: string | null;
 
+  @Column({ type: 'uuid', nullable: true })
+  idempotency_key: string | null;
+
+  @Column({ type: 'char', length: 64, nullable: true })
+  request_hash: string | null;
+
+  @Column({ type: 'jsonb', nullable: true })
+  response_snapshot: Record<string, unknown> | null;
+
+  @Column({ type: 'boolean', default: false })
+  is_late: boolean;
+
   @Column({ type: 'varchar', length: 32 })
   status: ReviewStatus;
 
@@ -59,6 +71,30 @@ export class Review extends BaseEntity {
 
   @Column({ type: 'int', default: 0 })
   helpful_count: number;
+}
+
+@Entity({ schema: 'review', name: 'professional_review_stats' })
+export class ProfessionalReviewStats {
+  @Column({ type: 'uuid', primary: true })
+  professional_id: string;
+
+  @Column({ type: 'numeric', precision: 4, scale: 3, nullable: true })
+  rating_avg: number | null;
+
+  @Column({ type: 'numeric', precision: 4, scale: 3, nullable: true })
+  punctuality_avg: number | null;
+
+  @Column({ type: 'numeric', precision: 4, scale: 3, nullable: true })
+  quality_avg: number | null;
+
+  @Column({ type: 'numeric', precision: 4, scale: 3, nullable: true })
+  price_ratio_avg: number | null;
+
+  @Column({ type: 'numeric', precision: 4, scale: 3, nullable: true })
+  politeness_avg: number | null;
+
+  @Column({ type: 'timestamptz' })
+  updated_at: Date;
 }
 
 /**
