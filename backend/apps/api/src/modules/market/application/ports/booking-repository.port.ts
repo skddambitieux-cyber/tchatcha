@@ -50,7 +50,7 @@ export interface ReleaseIntent {
   commissionAmount: number;
 }
 export type ReleaseOutcome = {
-  status: 'SUCCEEDED' | 'FAILED';
+  status: 'SUCCEEDED' | 'FAILED' | 'PENDING';
   providerCode: string;
   externalRef?: string;
   failureReason?: string;
@@ -67,7 +67,8 @@ export type ConfirmProgressResult =
 export type FinalizeResult =
   | { kind: 'COMPLETED'; view: BookingView }
   | { kind: 'ALREADY_COMPLETED'; view: BookingView }
-  | { kind: 'RELEASE_FAILED'; view: BookingView };
+  | { kind: 'RELEASE_FAILED'; view: BookingView }
+  | { kind: 'BOOKING_DISPUTED'; view: BookingView };
 export interface BookingRepositoryPort {
   isActiveClient(userId: string): Promise<boolean>;
   listSlots(

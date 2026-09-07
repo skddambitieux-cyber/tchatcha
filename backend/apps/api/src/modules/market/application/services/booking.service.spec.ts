@@ -21,6 +21,7 @@ describe('BookingService', () => {
   const service = new BookingService(repo, gateway);
   beforeEach(() => {
     jest.clearAllMocks();
+    repo.finalize.mockReset();
     repo.isActiveClient.mockResolvedValue(true);
     repo.listSlots.mockResolvedValue([]);
   });
@@ -155,6 +156,21 @@ describe('BookingService', () => {
       code: 'release_failed',
     });
   });
+  it('finalize : booking DISPUTED → 409 sans appel provider supplémentaire', async () => {
+    repo.confirm.mockResolvedValue({
+      kind: 'RESUME_RELEASE',
+      view: view('IN_PROGRESS'),
+      release: intent,
+    });
+    gateway.release.mockResolvedValue({
+      status: 'SUCCEEDED',
+      providerCode: 'SIMULATOR',
+      externalRef: 'REL-t-abc',
+    });
+    repo.finalize.mockResolvedValue({ kind: 'BOOKING_DISPUTED', view: view('DISPUTED') });
+    await expect(service.confirm('u', 'b')).rejects.toMatchObject({ code: 'booking_disputed' });
+    expect(gateway.release).toHaveBeenCalledTimes(1);
+  });
   it('confirm : gateway injoignable → 502 (pas de COMPLETED)', async () => {
     repo.confirm.mockResolvedValue({
       kind: 'RESUME_RELEASE',
@@ -162,6 +178,7 @@ describe('BookingService', () => {
       release: intent,
     });
     gateway.release.mockRejectedValue(new Error('network down'));
+    repo.finalize.mockResolvedValue({ kind: 'RELEASE_FAILED', view: view('IN_PROGRESS') });
     await expect(service.confirm('u', 'b')).rejects.toMatchObject({
       code: 'release_failed',
     });

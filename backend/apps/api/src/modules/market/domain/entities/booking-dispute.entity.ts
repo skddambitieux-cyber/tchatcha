@@ -87,6 +87,12 @@ export class Dispute extends BaseEntity {
   @Column({ type: 'text' })
   reason: string;
 
+  @Column({ type: 'text' })
+  description: string;
+
+  @Column({ type: 'uuid', array: true, default: '{}' })
+  media_ids: string[];
+
   @Column({ type: 'varchar', length: 32 })
   status: string;
 
@@ -98,4 +104,13 @@ export class Dispute extends BaseEntity {
 
   @Column({ type: 'timestamptz', nullable: true })
   resolved_at: Date | null;
+
+  @Column({ type: 'uuid', nullable: true })
+  idempotency_key: string | null;
+
+  @Column({ type: 'char', length: 64, nullable: true })
+  request_hash: string | null;
+
+  @Column({ type: 'jsonb', nullable: true })
+  response_snapshot: Record<string, unknown> | null;
 }

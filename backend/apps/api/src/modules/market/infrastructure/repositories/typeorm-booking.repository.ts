@@ -145,7 +145,7 @@ export class TypeOrmBookingRepository implements BookingRepositoryPort {
           return {
             kind: 'RESUME_RELEASE',
             view: await this.read(m, bookingId),
-            release: this.buildIntent(row),
+            release: await this.reservePayout(m, row),
           };
         return {
           kind: 'ALREADY_CONFIRMED',
@@ -167,7 +167,7 @@ export class TypeOrmBookingRepository implements BookingRepositoryPort {
           return {
             kind: 'RESUME_RELEASE',
             view: await this.read(m, bookingId),
-            release: this.buildIntent(row),
+            release: await this.reservePayout(m, row),
           };
         return {
           kind: 'ALREADY_CONFIRMED',
@@ -183,7 +183,7 @@ export class TypeOrmBookingRepository implements BookingRepositoryPort {
       // Vue lue APRÈS l'UPDATE du timestamp (état frais, y compris le rejeu).
       const fresh = await this.read(m, bookingId);
       if (after.client_confirmed_at && after.pro_confirmed_at)
-        return { kind: 'SECOND_CONFIRMED', view: fresh, release: this.buildIntent(row) };
+        return { kind: 'SECOND_CONFIRMED', view: fresh, release: await this.reservePayout(m, row) };
       return { kind: 'FIRST_CONFIRMED', view: fresh };
     });
   }
@@ -199,6 +199,8 @@ export class TypeOrmBookingRepository implements BookingRepositoryPort {
           [bookingId],
         )
       )[0];
+      if (row?.status === 'DISPUTED')
+        return { kind: 'BOOKING_DISPUTED', view: await this.read(m, bookingId) };
       if (!row || row.status === 'COMPLETED')
         return { kind: 'ALREADY_COMPLETED', view: await this.read(m, bookingId) };
       if (
@@ -208,14 +210,13 @@ export class TypeOrmBookingRepository implements BookingRepositoryPort {
       )
         return { kind: 'RELEASE_FAILED', view: await this.read(m, bookingId) };
       const view = await this.read(m, bookingId);
+      if (outcome.status === 'PENDING') return { kind: 'RELEASE_FAILED', view };
       if (outcome.status === 'FAILED') {
         await m.query(
-          `INSERT INTO pay.provider_operations(transaction_id,provider_code,operation_type,status,amount,response_payload,initiated_at,completed_at)
-           VALUES($1,$2,'PAYOUT','FAILED',$3,$4::jsonb,now(),now())`,
+          `UPDATE pay.provider_operations SET status='FAILED',response_payload=$2::jsonb,completed_at=now()
+           WHERE transaction_id=$1 AND operation_type='PAYOUT' AND status='PENDING'`,
           [
             intent.transactionId,
-            outcome.providerCode,
-            intent.amount,
             JSON.stringify({ failure_reason: outcome.failureReason ?? null }),
           ],
         );
@@ -223,12 +224,11 @@ export class TypeOrmBookingRepository implements BookingRepositoryPort {
       }
       try {
         await m.query(
-          `INSERT INTO pay.provider_operations(transaction_id,provider_code,operation_type,status,amount,external_ref,initiated_at,completed_at)
-           VALUES($1,$2,'PAYOUT','SUCCEEDED',$3,$4,now(),now())`,
+          `UPDATE pay.provider_operations SET status='SUCCEEDED',provider_code=$2,external_ref=$3,completed_at=now()
+           WHERE transaction_id=$1 AND operation_type='PAYOUT' AND status='PENDING'`,
           [
             intent.transactionId,
             outcome.providerCode,
-            intent.amount,
             outcome.externalRef ?? null,
           ],
         );
@@ -283,6 +283,18 @@ export class TypeOrmBookingRepository implements BookingRepositoryPort {
       commissionRate: Number(row.commission_rate),
       commissionAmount: Number(row.commission_amount),
     };
+  }
+  private async reservePayout(m: EntityManager, row: Record<string, unknown>): Promise<ReleaseIntent> {
+    const intent = this.buildIntent(row);
+    const existing = (await m.query(`SELECT id FROM pay.provider_operations
+      WHERE transaction_id=$1 AND operation_type='PAYOUT' AND status='PENDING' LIMIT 1`, [intent.transactionId]))[0];
+    if (!existing) {
+      await m.query(`INSERT INTO pay.provider_operations
+        (transaction_id,provider_code,operation_type,status,amount,request_payload,initiated_at)
+        VALUES($1,'SIMULATOR','PAYOUT','PENDING',$2,$3::jsonb,now())`,
+        [intent.transactionId, intent.amount, JSON.stringify({ idempotency_key: intent.idempotencyKey })]);
+    }
+    return intent;
   }
   private async read(m: EntityManager, id: string): Promise<BookingView> {
     const r = (

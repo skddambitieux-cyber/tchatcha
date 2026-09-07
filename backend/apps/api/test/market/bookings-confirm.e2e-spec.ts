@@ -13,7 +13,7 @@ import { OtpStorePortToken } from '../../src/modules/auth/application/ports/otp-
 import { OtpPurpose } from '../../src/modules/auth/domain/entities/otp-code.entity';
 import { hashOtpCode } from '../../src/modules/auth/application/services/otp.service';
 import { PaymentGatewayPortToken } from '../../src/modules/pay/application/ports/payment-gateway.port';
-import { SimulatorPaymentGateway } from '../../src/modules/pay/infrastructure/gateways/simulator-payment.gateway';
+import { TestPaymentGateway } from '../test-payment-gateway';
 import {
   BookingRepositoryPort,
   BookingRepositoryPortToken,
@@ -150,7 +150,7 @@ describe('Lot FCT-014 bookings confirm', () => {
   });
 
   it('échec de release → 502, jamais COMPLETED, reprise propre ensuite', async () => {
-    const gateway = app.app.get<SimulatorPaymentGateway>(
+    const gateway = app.app.get<TestPaymentGateway>(
       PaymentGatewayPortToken,
     );
     const { bookingId } = await seedPaid('plombiers', 12000, 17);
@@ -183,7 +183,7 @@ describe('Lot FCT-014 bookings confirm', () => {
   });
 
   it('résultat réseau ambigu (release lève) → 502 puis reprise avec la MÊME clé, une seule libération', async () => {
-    const gateway = app.app.get<SimulatorPaymentGateway>(
+    const gateway = app.app.get<TestPaymentGateway>(
       PaymentGatewayPortToken,
     );
     const { bookingId } = await seedPaid('plombiers', 12000, 31);
@@ -205,7 +205,7 @@ describe('Lot FCT-014 bookings confirm', () => {
   });
 
   it('crash simulé entre release réussie et finalize() → reprise même clé, un seul payout', async () => {
-    const gateway = app.app.get<SimulatorPaymentGateway>(
+    const gateway = app.app.get<TestPaymentGateway>(
       PaymentGatewayPortToken,
     );
     const repo = app.app.get<BookingRepositoryPort>(BookingRepositoryPortToken);

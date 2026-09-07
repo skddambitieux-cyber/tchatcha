@@ -25,6 +25,10 @@ import { ProfessionalSlotsController } from './interface/http/professional-slots
 import { BookingService } from './application/services/booking.service';
 import { BookingRepositoryPortToken } from './application/ports/booking-repository.port';
 import { TypeOrmBookingRepository } from './infrastructure/repositories/typeorm-booking.repository';
+import { DisputesController } from './interface/http/disputes.controller';
+import { DisputeService } from './application/services/dispute.service';
+import { DisputeRepositoryPortToken } from './application/ports/dispute-repository.port';
+import { TypeOrmDisputeRepository } from './infrastructure/repositories/typeorm-dispute.repository';
 
 @Module({
   imports: [
@@ -37,6 +41,7 @@ import { TypeOrmBookingRepository } from './infrastructure/repositories/typeorm-
     QuotesController,
     RequestsController,
     BookingsController,
+    DisputesController,
     ProfessionalSlotsController,
   ],
   providers: [
@@ -44,6 +49,7 @@ import { TypeOrmBookingRepository } from './infrastructure/repositories/typeorm-
     MatchedRequestService,
     QuoteService,
     BookingService,
+    DisputeService,
     { provide: RequestRepositoryPortToken, useClass: TypeOrmRequestRepository },
     {
       provide: MatchedRequestRepositoryPortToken,
@@ -51,6 +57,7 @@ import { TypeOrmBookingRepository } from './infrastructure/repositories/typeorm-
     },
     { provide: QuoteRepositoryPortToken, useClass: TypeOrmQuoteRepository },
     { provide: BookingRepositoryPortToken, useClass: TypeOrmBookingRepository },
+    { provide: DisputeRepositoryPortToken, useClass: TypeOrmDisputeRepository },
   ],
   exports: [TypeOrmModule],
 })

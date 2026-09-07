@@ -10,6 +10,7 @@ import {
   BookingInvalidError,
   BookingNotFoundError,
   BookingReleaseFailedError,
+  BookingDisputedError,
   BookingSlotConflictError,
   BookingVersionConflictError,
   RequestForbiddenError,
@@ -20,9 +21,9 @@ import type {
 } from '../../interface/http/dto/booking.dto';
 import {
   PaymentGatewayPortToken,
-  type GatewayReleaseResult,
   type PaymentGatewayPort,
 } from '../../../pay/application/ports/payment-gateway.port';
+import type { ReleaseOutcome } from '../ports/booking-repository.port';
 @Injectable()
 export class BookingService {
   constructor(
@@ -91,8 +92,9 @@ export class BookingService {
         return r.view;
       case 'SECOND_CONFIRMED':
       case 'RESUME_RELEASE': {
-        const outcome: GatewayReleaseResult = await this.gateway
-          .release({
+        let outcome: ReleaseOutcome;
+        try {
+          outcome = await this.gateway.release({
             reference: r.release.transactionId,
             // Clé d'idempotence stable : les retries (502 → rejeu) réutilisent
             // exactement la même clé → jamais deux libérations logiques.
@@ -101,12 +103,11 @@ export class BookingService {
             currency: r.release.currency,
             countryCode: r.release.countryCode,
             beneficiaryPhone: r.release.beneficiaryPhone,
-          })
-          .catch(() => ({
-            status: 'FAILED' as const,
-            providerCode: 'SIMULATOR',
-            failureReason: 'gateway_unreachable',
-          }));
+          });
+        } catch {
+          // Résultat inconnu : laisser la réservation PENDING pour reprise.
+          outcome = { status: 'PENDING', providerCode: 'SIMULATOR', failureReason: 'gateway_unreachable' };
+        }
         const fin = await this.repository.finalize(
           r.release.bookingId,
           r.release,
@@ -114,6 +115,8 @@ export class BookingService {
         );
         if (fin.kind === 'RELEASE_FAILED')
           throw new BookingReleaseFailedError();
+        if (fin.kind === 'BOOKING_DISPUTED')
+          throw new BookingDisputedError();
         return fin.view;
       }
     }

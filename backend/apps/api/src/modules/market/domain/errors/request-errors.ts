@@ -60,3 +60,4 @@ export class BookingIdempotencyMismatchError extends RequestError { constructor(
 export class BookingConfirmForbiddenError extends RequestError { constructor(){super('Confirmation réservée aux participants de la réservation','forbidden',403);} }
 export class BookingConfirmIllegalStateError extends RequestError { constructor(){super('Réservation non confirmable en l’état','booking_confirmed_invalid_state',409);} }
 export class BookingReleaseFailedError extends RequestError { constructor(){super('Libération du paiement impossible, réessayez','release_failed',502);} }
+export class BookingDisputedError extends RequestError { constructor(){super('La réservation est litigieuse et ne peut pas être finalisée','booking_disputed',409);} }

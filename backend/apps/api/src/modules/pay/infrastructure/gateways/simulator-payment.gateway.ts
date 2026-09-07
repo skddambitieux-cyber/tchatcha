@@ -32,11 +32,6 @@ export class SimulatorPaymentGateway implements PaymentGatewayPort {
    */
   private readonly releasedRefs = new Map<string, string>();
 
-  /** Seam de test (FCT-014) : simule un fournisseur en panne pour la release. */
-  private failReleases = false;
-  setFailReleases(v: boolean) {
-    this.failReleases = v;
-  }
 
   async initiate(charge: GatewayCharge): Promise<GatewayChargeInitiated> {
     const externalRef = `SIM-${charge.reference}-${randomUUID().slice(0, 8)}`;
@@ -68,13 +63,6 @@ export class SimulatorPaymentGateway implements PaymentGatewayPort {
   }
 
   async release(release: GatewayRelease): Promise<GatewayReleaseResult> {
-    if (this.failReleases) {
-      return {
-        status: 'FAILED',
-        providerCode: SIMULATOR_PROVIDER_CODE,
-        failureReason: 'simulated_provider_breakdown',
-      };
-    }
     const prior = this.releasedRefs.get(release.idempotencyKey);
     if (prior)
       return {

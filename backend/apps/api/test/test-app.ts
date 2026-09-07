@@ -13,6 +13,9 @@ import { TestSmsSpy } from './sms-spy';
 import { InMemoryStorage } from './in-memory-storage';
 import { OtpSenderPortToken } from '../src/modules/auth/application/ports/otp-sender.port';
 import { StoragePortToken } from '../src/modules/media/domain/ports/storage.port';
+import { PaymentGatewayPortToken } from '../src/modules/pay/application/ports/payment-gateway.port';
+import type { PaymentGatewayPort } from '../src/modules/pay/application/ports/payment-gateway.port';
+import { TestPaymentGateway } from './test-payment-gateway';
 
 export interface TestApp {
   app: INestApplication;
@@ -22,7 +25,7 @@ export interface TestApp {
   close: () => Promise<void>;
 }
 
-export async function createTestApp(): Promise<TestApp> {
+export async function createTestApp(options: { paymentGateway?: PaymentGatewayPort } = {}): Promise<TestApp> {
   const sms = new TestSmsSpy();
   const storage = new InMemoryStorage();
   const moduleRef = await Test.createTestingModule({
@@ -34,6 +37,8 @@ export async function createTestApp(): Promise<TestApp> {
     .useValue(sms)
     .overrideProvider(StoragePortToken)
     .useValue(storage)
+    .overrideProvider(PaymentGatewayPortToken)
+    .useValue(options.paymentGateway ?? new TestPaymentGateway())
     .compile();
 
   const app = moduleRef.createNestApplication({ rawBody: true });
