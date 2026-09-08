@@ -1,9 +1,9 @@
-import { Body, Controller, Get, Headers, Param, ParseIntPipe, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Headers, Param, ParseIntPipe, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '../../../auth/interface/http/guards/auth.guard';
 import { CurrentUser } from '../../../auth/interface/http/decorators/current-user.decorator';
 import { UserNotFoundError } from '../../../auth/domain/errors/auth-errors';
 import { ReviewService } from '../../application/services/review.service';
-import { CreateReviewDto } from './dto/review.dto';
+import { CreateReviewDto, RespondReviewDto, UpdateReviewDto } from './dto/review.dto';
 
 @Controller('reviews')
 @UseGuards(AuthGuard)
@@ -13,6 +13,18 @@ export class ReviewController {
   create(@CurrentUser() userId: string | undefined, @Headers('idempotency-key') key: string | undefined, @Body() dto: CreateReviewDto) {
     if (!userId) throw new UserNotFoundError();
     return this.reviews.create(userId, key, dto);
+  }
+
+  @Patch(':id')
+  update(@CurrentUser() userId: string | undefined, @Param('id') id: string, @Body() dto: UpdateReviewDto) {
+    if (!userId) throw new UserNotFoundError();
+    return this.reviews.update(userId, id, dto);
+  }
+
+  @Post(':id/respond')
+  respond(@CurrentUser() userId: string | undefined, @Param('id') id: string, @Headers('idempotency-key') key: string | undefined, @Body() dto: RespondReviewDto) {
+    if (!userId) throw new UserNotFoundError();
+    return this.reviews.respond(userId, id, key, dto);
   }
 }
 

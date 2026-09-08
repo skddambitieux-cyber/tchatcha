@@ -151,6 +151,71 @@ describe('FCT-016A reviews', () => {
     await app.http.get(`/api/v1/professionals/${randomUUID()}/reviews`).expect(404);
   });
 
+  it('modifie un avis une seule fois, audite le diff et recalcule les moyennes', async () => {
+    const bookingId = await seedBooking('COMPLETED', 10);
+    const created = await create(validBody(bookingId), randomUUID(), clientToken).expect(201);
+    const updated = await app.http.patch(`/api/v1/reviews/${created.body.id}`).set('Authorization', `Bearer ${clientToken}`)
+      .send({ rating: 1, punctuality: 2, quality: 3, price_ratio: 4, politeness: 5, comment: 'Corrigé', media_ids: [] }).expect(200);
+    expect(updated.body).toMatchObject({ id: created.body.id, rating: 1, punctuality: 2, comment: 'Corrigé' });
+    await app.http.patch(`/api/v1/reviews/${created.body.id}`).set('Authorization', `Bearer ${clientToken}`)
+      .send({ rating: 5, punctuality: 5, quality: 5, price_ratio: 5, politeness: 5 }).expect(409);
+    const row = (await db.query(`SELECT edit_count FROM review.reviews WHERE id=$1`, [created.body.id]))[0];
+    const audit = (await db.query(`SELECT before,after FROM audit.logs WHERE entity_type='REVIEW' AND entity_id=$1 AND action='review.edited'`, [created.body.id]))[0];
+    expect(Number(row.edit_count)).toBe(1);
+    expect(audit.before.rating).toBe(5);
+    expect(audit.after.rating).toBe(1);
+    const list = await app.http.get(`/api/v1/professionals/${proId}/reviews`).expect(200);
+    expect(list.body.averages).toMatchObject({ count: 1, rating: 1, punctuality: 2, quality: 3, price_ratio: 4, politeness: 5 });
+  });
+
+  it('refuse modification hors délai et par tout autre rôle', async () => {
+    const created = await create(validBody(await seedBooking('COMPLETED', 10)), randomUUID(), clientToken).expect(201);
+    await db.query(`UPDATE review.reviews SET created_at=now()-interval '49 hours' WHERE id=$1`, [created.body.id]);
+    await app.http.patch(`/api/v1/reviews/${created.body.id}`).set('Authorization', `Bearer ${clientToken}`).send({ rating: 4, punctuality: 4, quality: 4, price_ratio: 4, politeness: 4 }).expect(409);
+    await db.query(`UPDATE review.reviews SET created_at=now() WHERE id=$1`, [created.body.id]);
+    for (const token of [proToken, outsiderToken, adminToken]) {
+      await app.http.patch(`/api/v1/reviews/${created.body.id}`).set('Authorization', `Bearer ${token}`).send({ rating: 4, punctuality: 4, quality: 4, price_ratio: 4, politeness: 4 }).expect(403);
+    }
+  });
+
+  it('protège deux modifications concurrentes', async () => {
+    const created = await create(validBody(await seedBooking('COMPLETED', 10)), randomUUID(), clientToken).expect(201);
+    const body = { rating: 4, punctuality: 4, quality: 4, price_ratio: 4, politeness: 4 };
+    const results = await Promise.all([
+      app.http.patch(`/api/v1/reviews/${created.body.id}`).set('Authorization', `Bearer ${clientToken}`).send(body),
+      app.http.patch(`/api/v1/reviews/${created.body.id}`).set('Authorization', `Bearer ${clientToken}`).send({ ...body, comment: 'course' }),
+    ]);
+    expect(results.map((r) => r.status).sort()).toEqual([200, 409]);
+  });
+
+  it('répond une fois, rejoue la clé et publie sans données privées', async () => {
+    const created = await create(validBody(await seedBooking('COMPLETED', 10)), randomUUID(), clientToken).expect(201);
+    const body = { body: 'Merci pour votre retour.' };
+    const key = randomUUID();
+    const first = await app.http.post(`/api/v1/reviews/${created.body.id}/respond`).set('Authorization', `Bearer ${proToken}`).set('Idempotency-Key', key).send(body).expect(201);
+    const replay = await app.http.post(`/api/v1/reviews/${created.body.id}/respond`).set('Authorization', `Bearer ${proToken}`).set('Idempotency-Key', key).send(body).expect(201);
+    expect(replay.body).toEqual(first.body);
+    await app.http.post(`/api/v1/reviews/${created.body.id}/respond`).set('Authorization', `Bearer ${proToken}`).set('Idempotency-Key', randomUUID()).send(body).expect(409);
+    await app.http.post(`/api/v1/reviews/${created.body.id}/respond`).set('Authorization', `Bearer ${proToken}`).set('Idempotency-Key', key).send({ body: 'Autre' }).expect(409);
+    const listed = await app.http.get(`/api/v1/professionals/${proId}/reviews`).expect(200);
+    expect(listed.body.data[0].response).toMatchObject({ body: body.body });
+    expect(listed.body.data[0].response).not.toHaveProperty('professional_id');
+  });
+
+  it('refuse réponse non autorisée/invalide et deux réponses concurrentes', async () => {
+    const created = await create(validBody(await seedBooking('COMPLETED', 10)), randomUUID(), clientToken).expect(201);
+    for (const token of [clientToken, outsiderToken, adminToken]) {
+      await app.http.post(`/api/v1/reviews/${created.body.id}/respond`).set('Authorization', `Bearer ${token}`).set('Idempotency-Key', randomUUID()).send({ body: 'Non' }).expect(403);
+    }
+    await app.http.post(`/api/v1/reviews/${created.body.id}/respond`).set('Authorization', `Bearer ${proToken}`).set('Idempotency-Key', randomUUID()).send({ body: '' }).expect(400);
+    await app.http.post(`/api/v1/reviews/${created.body.id}/respond`).set('Authorization', `Bearer ${proToken}`).set('Idempotency-Key', randomUUID()).send({ body: 'x'.repeat(501) }).expect(400);
+    const results = await Promise.all([
+      app.http.post(`/api/v1/reviews/${created.body.id}/respond`).set('Authorization', `Bearer ${proToken}`).set('Idempotency-Key', randomUUID()).send({ body: 'A' }),
+      app.http.post(`/api/v1/reviews/${created.body.id}/respond`).set('Authorization', `Bearer ${proToken}`).set('Idempotency-Key', randomUUID()).send({ body: 'B' }),
+    ]);
+    expect(results.map((r) => r.status).sort()).toEqual([201, 409]);
+  });
+
   function validBody(booking_id: string) { return { booking_id, rating: 5, punctuality: 5, quality: 5, price_ratio: 5, politeness: 5 }; }
   function create(body: Record<string, unknown>, key: string, token: string) { return app.http.post('/api/v1/reviews').set('Authorization', `Bearer ${token}`).set('Idempotency-Key', key).send(body); }
 
@@ -176,6 +241,7 @@ describe('FCT-016A reviews', () => {
   }
   async function clean() {
     if (!db) return;
+    await db.query(`DELETE FROM audit.logs WHERE actor_id IN (SELECT id FROM users.users WHERE phone LIKE $1)`, [PREFIX]);
     await db.query(`DELETE FROM media.files WHERE owner_type='REVIEW' AND owner_id IN (SELECT id FROM review.reviews WHERE reviewer_id IN (SELECT id FROM users.users WHERE phone LIKE $1))`, [PREFIX]);
     await db.query(`DELETE FROM review.reviews WHERE reviewer_id IN (SELECT id FROM users.users WHERE phone LIKE $1)`, [PREFIX]);
     await db.query(`DELETE FROM review.professional_review_stats WHERE professional_id IN (SELECT id FROM pros.profiles WHERE user_id IN (SELECT id FROM users.users WHERE phone LIKE $1))`, [PREFIX]);

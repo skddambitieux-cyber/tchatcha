@@ -60,6 +60,12 @@ export class Review extends BaseEntity {
   @Column({ type: 'boolean', default: false })
   is_late: boolean;
 
+  @Column({ type: 'smallint', default: 0 })
+  edit_count: number;
+
+  @Column({ type: 'timestamptz', nullable: true })
+  edited_at: Date | null;
+
   @Column({ type: 'varchar', length: 32 })
   status: ReviewStatus;
 
@@ -95,6 +101,54 @@ export class ProfessionalReviewStats {
 
   @Column({ type: 'timestamptz' })
   updated_at: Date;
+}
+
+@Entity({ schema: 'review', name: 'review_edits' })
+@Index('uq_review_edits_review', ['review_id'], { unique: true })
+export class ReviewEdit {
+  @Column({ type: 'uuid', primary: true })
+  id: string;
+
+  @Column({ type: 'uuid' })
+  review_id: string;
+
+  @Column({ type: 'uuid' })
+  actor_id: string;
+
+  @Column({ type: 'jsonb' })
+  before: Record<string, unknown>;
+
+  @Column({ type: 'jsonb' })
+  after: Record<string, unknown>;
+
+  @Column({ type: 'timestamptz' })
+  created_at: Date;
+}
+
+@Entity({ schema: 'review', name: 'responses' })
+@Index('uq_review_responses_review', ['review_id'], { unique: true })
+@Index('uq_review_responses_idempotency', ['professional_id', 'idempotency_key'], { unique: true })
+export class ReviewResponse {
+  @Column({ type: 'uuid', primary: true })
+  id: string;
+
+  @Column({ type: 'uuid' })
+  review_id: string;
+
+  @Column({ type: 'uuid' })
+  professional_id: string;
+
+  @Column({ type: 'varchar', length: 500 })
+  body: string;
+
+  @Column({ type: 'uuid' })
+  idempotency_key: string;
+
+  @Column({ type: 'char', length: 64 })
+  request_hash: string;
+
+  @Column({ type: 'timestamptz' })
+  created_at: Date;
 }
 
 /**

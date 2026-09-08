@@ -8,7 +8,7 @@ describe('ReviewService', () => {
   const key = '22222222-2222-4222-8222-222222222222';
 
   beforeEach(() => {
-    repo = { create: jest.fn(), list: jest.fn() };
+    repo = { create: jest.fn(), update: jest.fn(), respond: jest.fn(), list: jest.fn() };
     service = new ReviewService(repo);
   });
 
@@ -33,5 +33,34 @@ describe('ReviewService', () => {
 
   it('refuse une clé absente ou invalide', async () => {
     await expect(service.create('u', undefined, dto)).rejects.toMatchObject({ code: 'idempotency_key_invalid' });
+  });
+
+  it('normalise la modification et mappe les conflits', async () => {
+    repo.update.mockResolvedValue({ id: 'r' } as never);
+    await expect(service.update('u', 'r', { rating: dto.rating, punctuality: dto.punctuality, quality: dto.quality, price_ratio: dto.price_ratio, politeness: dto.politeness, comment: dto.comment, media_ids: ['44444444-4444-4444-8444-444444444444', '33333333-3333-4333-8333-333333333333'] })).resolves.toMatchObject({ id: 'r' });
+    expect(repo.update).toHaveBeenCalledWith(expect.objectContaining({ dto: expect.objectContaining({ comment: 'Bien', media_ids: ['33333333-3333-4333-8333-333333333333', '44444444-4444-4444-8444-444444444444'] }) }));
+  });
+
+  it.each([
+    ['NOT_FOUND', 'professional_not_found'], ['FORBIDDEN', 'forbidden'], ['WINDOW_CLOSED', 'review_edit_window_closed'],
+    ['ALREADY_EDITED', 'review_already_edited'], ['INVALID_STATE', 'review_not_editable'], ['MEDIA_INVALID', 'review_media_not_found'],
+  ] as const)('mappe la modification %s vers %s', async (result, code) => {
+    repo.update.mockResolvedValue(result);
+    await expect(service.update('u', 'r', dto as never)).rejects.toMatchObject({ code });
+  });
+
+  it('normalise la réponse et exige une clé valide', async () => {
+    repo.respond.mockResolvedValue({ id: 'response', body: 'Merci' } as never);
+    await expect(service.respond('u', 'r', key, { body: '  Merci  ' })).resolves.toMatchObject({ id: 'response' });
+    expect(repo.respond).toHaveBeenCalledWith(expect.objectContaining({ body: 'Merci', requestHash: expect.stringMatching(/^[0-9a-f]{64}$/) }));
+    await expect(service.respond('u', 'r', undefined, { body: 'Merci' })).rejects.toMatchObject({ code: 'idempotency_key_invalid' });
+  });
+
+  it.each([
+    ['NOT_FOUND', 'professional_not_found'], ['FORBIDDEN', 'forbidden'], ['INVALID_STATE', 'review_not_editable'],
+    ['ALREADY_EXISTS', 'review_response_exists'], ['IDEMPOTENCY_MISMATCH', 'idempotency_mismatch'],
+  ] as const)('mappe la réponse %s vers %s', async (result, code) => {
+    repo.respond.mockResolvedValue(result);
+    await expect(service.respond('u', 'r', key, { body: 'Merci' })).rejects.toMatchObject({ code });
   });
 });

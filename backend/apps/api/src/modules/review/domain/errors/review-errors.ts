@@ -9,3 +9,7 @@ export class ReviewAlreadyExistsError extends ReviewError { constructor() { supe
 export class ReviewIdempotencyMismatchError extends ReviewError { constructor() { super('Clé réutilisée avec un contenu différent', 'idempotency_mismatch', 409); } }
 export class ReviewMediaInvalidError extends ReviewError { constructor() { super('Un média est invalide ou non autorisé', 'review_media_not_found', 404); } }
 export class ReviewIdempotencyKeyError extends ReviewError { constructor() { super('Clé d’idempotence absente ou invalide', 'idempotency_key_invalid', 400); } }
+export class ReviewEditWindowClosedError extends ReviewError { constructor() { super('La fenêtre de modification est fermée', 'review_edit_window_closed', 409); } }
+export class ReviewAlreadyEditedError extends ReviewError { constructor() { super('Cet avis a déjà été modifié', 'review_already_edited', 409); } }
+export class ReviewNotEditableError extends ReviewError { constructor() { super('Cet avis ne peut pas être modifié', 'review_not_editable', 409); } }
+export class ReviewResponseExistsError extends ReviewError { constructor() { super('Cet avis possède déjà une réponse', 'review_response_exists', 409); } }
