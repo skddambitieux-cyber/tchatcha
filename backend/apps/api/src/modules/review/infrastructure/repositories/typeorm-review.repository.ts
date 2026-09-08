@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { DataSource } from 'typeorm';
-import type { CreateReviewCommand, CreateReviewResult, RespondReviewCommand, RespondReviewResult, ReviewRepositoryPort, UpdateReviewCommand, UpdateReviewResult } from '../../application/ports/review-repository.port';
+import type { CreateReviewCommand, CreateReviewResult, ModerateReviewCommand, ModerateReviewResult, ModerationQueueItem, ReportReviewCommand, ReportReviewResult, RespondReviewCommand, RespondReviewResult, ReviewRepositoryPort, UpdateReviewCommand, UpdateReviewResult } from '../../application/ports/review-repository.port';
 import type { ReviewListView, ReviewResponseView, ReviewView } from '../../interface/http/dto/review.dto';
 
 type Row = Record<string, unknown>;
@@ -108,6 +108,56 @@ export class TypeOrmReviewRepository implements ReviewRepositoryPort {
         VALUES('Review',$1,'review.response_added',$2::jsonb)`, [c.reviewId, JSON.stringify({ review_id: c.reviewId })]);
       return view;
     });
+  }
+
+  async report(c: ReportReviewCommand): Promise<ReportReviewResult> {
+    return this.db.transaction(async (m) => {
+      const review = (await m.query(`SELECT r.id,r.status,r.reviewer_id,r.reviewee_id,p.user_id AS professional_user_id
+        FROM review.reviews r JOIN pros.profiles p ON p.id=r.reviewee_id WHERE r.id=$1 FOR UPDATE`, [c.reviewId]))[0] as Row | undefined;
+      if (!review) return 'NOT_FOUND';
+      if (String(review.reviewer_id) !== c.actorId && String(review.professional_user_id) !== c.actorId) return 'FORBIDDEN';
+      const prior = (await m.query(`SELECT id,review_id,status,created_at,request_hash FROM review.review_flags WHERE review_id=$1 AND flagged_by=$2`, [c.reviewId, c.actorId]))[0] as Row | undefined;
+      if (prior) {
+        if (prior.request_hash && String(prior.request_hash) !== c.requestHash) return 'IDEMPOTENCY_MISMATCH';
+        return { id: String(prior.id), review_id: c.reviewId, status: String(prior.status), created_at: toIso(prior.created_at) };
+      }
+      const reused = (await m.query(`SELECT request_hash FROM review.review_flags WHERE flagged_by=$1 AND idempotency_key=$2 LIMIT 1`, [c.actorId, c.idempotencyKey]))[0] as Row | undefined;
+      if (reused && String(reused.request_hash) !== c.requestHash) return 'IDEMPOTENCY_MISMATCH';
+      const inserted = (await m.query(`INSERT INTO review.review_flags(review_id,flagged_by,reason,comment,status,idempotency_key,request_hash)
+        VALUES($1,$2,$3,$4,'OPEN',$5,$6) RETURNING id,review_id,status,created_at`, [c.reviewId, c.actorId, c.dto.reason, c.dto.comment ?? null, c.idempotencyKey, c.requestHash]))[0] as Row;
+      if (String(review.status) === 'APPROVED') await m.query(`UPDATE review.reviews SET status='FLAGGED',updated_at=now() WHERE id=$1`, [c.reviewId]);
+      await m.query(`INSERT INTO admin.validation_tasks(entity_type,entity_id,status,note) VALUES('REVIEW',$1,'OPEN',$2)
+        ON CONFLICT DO NOTHING`, [c.reviewId, c.dto.reason]);
+      await this.audit(m, c.actorId, c.reviewId, 'review.reported', null, { reason: c.dto.reason });
+      return { id: String(inserted.id), review_id: c.reviewId, status: 'OPEN', created_at: toIso(inserted.created_at) };
+    });
+  }
+
+  async moderate(c: ModerateReviewCommand): Promise<ModerateReviewResult> {
+    return this.db.transaction(async (m) => {
+      const review = (await m.query(`SELECT r.* FROM review.reviews r WHERE r.id=$1 FOR UPDATE`, [c.reviewId]))[0] as Row | undefined;
+      if (!review) return 'NOT_FOUND';
+      const media = await m.query(`SELECT id FROM media.files WHERE owner_type='REVIEW' AND owner_id=$1 AND deleted_at IS NULL`, [c.reviewId]);
+      review.media_ids = media.map((row) => row.id);
+      const target = c.dto.decision === 'HIDE' ? 'REJECTED' : 'APPROVED';
+      if (String(review.status) === target) return this.toView(review);
+      if (c.dto.decision === 'RESTORE' && !['REJECTED','FLAGGED'].includes(String(review.status))) return 'INVALID_STATE';
+      await m.query(`UPDATE review.reviews SET status=$2,moderated_by=$3,moderated_at=now(),updated_at=now() WHERE id=$1`, [c.reviewId, target, c.adminId]);
+      await m.query(`UPDATE review.review_flags SET status='RESOLVED',resolved_by=$2,resolved_at=now() WHERE review_id=$1 AND status IN ('OPEN','IN_REVIEW')`, [c.reviewId, c.adminId]);
+      await m.query(`UPDATE admin.validation_tasks SET status='COMPLETED',decided_by=$2,decided_at=now(),note=$3,updated_at=now() WHERE entity_type='REVIEW' AND entity_id=$1`, [c.reviewId, c.adminId, c.dto.reason]);
+      await this.recalculate(m, String(review.reviewee_id));
+      await this.audit(m, c.adminId, c.reviewId, 'review.moderated', { status: review.status }, { status: target, reason: c.dto.reason });
+      return this.toView({ ...review, status: target, moderated_by: c.adminId, moderated_at: new Date(), updated_at: new Date() });
+    });
+  }
+
+  async listModeration(status: string): Promise<ModerationQueueItem[]> {
+    const rows = await this.db.query(`SELECT r.id,r.status,r.reviewee_id,r.rating,r.comment,r.created_at,
+      count(f.id)::int AS report_count,COALESCE(array_agg(f.reason) FILTER (WHERE f.reason IS NOT NULL),'{}') AS reasons
+      FROM review.reviews r LEFT JOIN review.review_flags f ON f.review_id=r.id
+      WHERE ($1='OPEN' AND r.status='FLAGGED') OR ($1<>'OPEN' AND f.status=$1)
+      GROUP BY r.id ORDER BY r.created_at ASC`, [status]) as Row[];
+    return rows.map((r) => ({ id: String(r.id), status: String(r.status), reviewee_id: String(r.reviewee_id), rating: Number(r.rating), comment: r.comment == null ? null : String(r.comment), report_count: Number(r.report_count), reasons: Array.isArray(r.reasons) ? r.reasons.map(String) : [], created_at: toIso(r.created_at) }));
   }
 
   async list(professionalId: string, limit: number, cursor?: string): Promise<ReviewListView | null> {

@@ -13,3 +13,7 @@ export class ReviewEditWindowClosedError extends ReviewError { constructor() { s
 export class ReviewAlreadyEditedError extends ReviewError { constructor() { super('Cet avis a déjà été modifié', 'review_already_edited', 409); } }
 export class ReviewNotEditableError extends ReviewError { constructor() { super('Cet avis ne peut pas être modifié', 'review_not_editable', 409); } }
 export class ReviewResponseExistsError extends ReviewError { constructor() { super('Cet avis possède déjà une réponse', 'review_response_exists', 409); } }
+export class ReviewReportForbiddenError extends ReviewError { constructor() { super('Signalement interdit', 'forbidden', 403); } }
+export class ReviewReportExistsError extends ReviewError { constructor() { super('Avis déjà signalé par cet utilisateur', 'review_report_exists', 409); } }
+export class ReviewModerationConflictError extends ReviewError { constructor() { super('Conflit de modération', 'moderation_conflict', 409); } }
+export class ReviewMissingReasonError extends ReviewError { constructor() { super('Le motif est obligatoire', 'missing_reason', 422); } }

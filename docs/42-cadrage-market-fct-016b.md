@@ -41,7 +41,7 @@ L’état livré par FCT-016A est la référence :
 | Masquage | le schéma ne contient pas `HIDDEN` | conserver `APPROVED` comme visible et utiliser `REJECTED` comme décision de masquage ; `FLAGGED` désigne la file ouverte |
 | File admin | `admin.validation_tasks` est générique, sans unicité par avis | l’utiliser pour `entity_type='REVIEW'`, avec une contrainte unique sur une tâche ouverte |
 | Audit | les tables existent, le writer métier manque | ajouter un port minimal d’audit/outbox et son adaptateur transactionnel ; aucune écriture depuis un contrôleur |
-| Trust Score | formule configurable, pas de formule codée dans BR-130 | réutiliser le service/configuration de réputation ; avis masqué exclu puis score recomputé |
+| Trust Score | formule configurable, mais formule et configuration métier non validées pour FCT-016B2 | reporter le recalcul ; aucune formule provisoire ne doit être inventée ; un lot futur distinct définira formule, pondérations, versionnement et recalcul |
 | Suppression | BR-126 interdit la suppression auteur après 24 h | aucune route DELETE ; modification unique sous 48 h |
 
 Les erreurs publiques restent non-divulgantes : ressource absente, ressource
@@ -61,7 +61,7 @@ la différence permettrait d’énumérer des avis ou des bookings.
 
 - signalement avec motif obligatoire et protection contre les doublons/abus ;
 - file admin, masquage et restauration avec motif obligatoire ;
-- exclusion/réinclusion immédiate dans les moyennes, les critères et le Trust Score ;
+- exclusion/réinclusion immédiate dans les moyennes et les critères ; le recalcul du Trust Score est reporté faute de formule et de configuration métier validées ;
 - concurrence entre édition, réponse, signalement et décision admin.
 
 Le découpage en deux commits sûrs est recommandé. B1 touche deux écritures
@@ -169,8 +169,8 @@ Erreurs : `404 review_not_found), `409 moderation_conflict) ou
 
 Répéter la même décision et le même motif est idempotent et ne recompute pas.
 Une décision opposée est auditée. Un avis masqué est absent de la liste
-publique, des moyennes et du Trust Score ; sa restauration recalcule l’ensemble
-des avis `APPROVED).
+publique, des moyennes et des critères ; sa restauration recalcule atomiquement
+l’ensemble des avis `APPROVED). Le Trust Score n’est pas recalculé dans ce lot.
 
 ## 4. Modèle de données et migration 015
 
@@ -259,30 +259,31 @@ La source est toujours `reviewee_id = $1 AND status = 'APPROVED' AND
 deleted_at IS NULL`. Après édition, HIDE ou RESTORE, recalculer dans la même
 transaction :
 
-1. les cinq `AVG) dans `review.professional_review_stats) ;
+1. les cinq `AVG) dans `review.professional_review_stats), recalculées atomiquement ;
 2. `pros.profiles.rating_avg) et `rating_count) ;
 3. `pros.reputation.punctuality_avg) et les métriques nécessaires ;
-4. `pros.reputation.trust_score), `trust_level), `recomputed_at) ;
-5. `search.pro_search_docs) directement ou via l’Outbox.
+4. `search.pro_search_docs) directement ou via l’Outbox.
 
-La formule reste celle de BR-020/BR-130 : pondérations en configuration,
-arrondi d’affichage à une décimale, plafonds +0,50/−1,00 sur 30 jours. Une
-édition remplace les valeurs prises en compte ; elle ne crée pas une seconde
-mission. Un avis masqué ne génère aucun bonus qualité et n’est pas compté ; sa
-restauration réintègre ses critères et son impact selon les règles existantes.
+Le recalcul du Trust Score est reporté : aucune formule ni configuration métier
+validée n’est disponible pour FCT-016B2, et aucune formule provisoire ne doit
+être inventée. Un lot futur distinct devra définir la formule, les pondérations,
+le versionnement et le recalcul. Une édition remplace les valeurs prises en
+compte ; elle ne crée pas une seconde mission. Un avis masqué est exclu des
+moyennes et critères ; sa restauration les réintègre après recalcul atomique.
 
-Le calcul doit être centralisé dans un port/service appelé par la transaction
-review. Si le service d’écriture n’existe pas encore, B2 livre cette adaptation
-minimale, pas une seconde formule locale dans `ReviewService`.
+Le futur calcul du Trust Score devra être centralisé dans un port/service appelé
+par la transaction review. B2 ne livre pas ce calcul et n’introduit aucune
+formule locale dans `ReviewService`.
 
 Chaque mutation écrit dans la même transaction :
 
 - `audit.logs) avec acteur, action, entité, `before), `after), pays et
   contexte disponible ;
 - `audit.aggregate_events) pour `review.edited), `review.reported`,
-  `review.moderated), `review.response_added), `reputation.recomputed` ;
+  `review.moderated), `review.response_added) ; le futur lot du Trust Score
+  ajoutera son événement de recalcul ;
 - `audit.events) pour `review.updated), `review.visibility_changed`,
-  `reputation.updated`.
+  `reputation.updated` uniquement pour les métriques effectivement recalculées.
 
 Le writer accepte l’`EntityManager) de la transaction. Aucun appel réseau ne
 doit précéder le commit. L’Outbox est consommable après commit et l’historique
@@ -344,7 +345,8 @@ lorsque la distinction créerait une énumération.
 - réponse : pro évalué, unicité, longueur, rôles négatifs ;
 - signalement : motifs, doublon, acteur hors relation, rate limit ;
 - modération : HIDE/RESTORE, motif, transitions ;
-- recomputation : cinq moyennes, exclusion/réinclusion, Trust Score et
+- recomputation : cinq moyennes atomiques, exclusion/réinclusion ; Trust Score
+  explicitement reporté faute de formule et configuration validées ;
   visibilité `completed_jobs >= 5) ;
 - audit/outbox : payloads, acteur, ordre, transaction.
 
@@ -369,7 +371,8 @@ lorsque la distinction créerait une énumération.
 - admin liste, passe `IN_REVIEW), HIDE avec motif, RESTORE avec motif ;
 - admin sans motif (`422)), non-admin (`403)), avis inconnu (`404)) ;
 - avis masqué absent de la liste et des moyennes ;
-- restauration visible avec moyennes et Trust Score restaurés ;
+- restauration visible avec moyennes et critères restaurés ; Trust Score non
+  recalculé dans ce lot ;
 - concurrence édition/réponse/signalement/modération ;
 - non-régression des tests review FCT-016A, admin, professionnels et search.
 

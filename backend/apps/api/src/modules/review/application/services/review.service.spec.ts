@@ -8,7 +8,7 @@ describe('ReviewService', () => {
   const key = '22222222-2222-4222-8222-222222222222';
 
   beforeEach(() => {
-    repo = { create: jest.fn(), update: jest.fn(), respond: jest.fn(), list: jest.fn() };
+    repo = { create: jest.fn(), update: jest.fn(), respond: jest.fn(), report: jest.fn(), moderate: jest.fn(), list: jest.fn() };
     service = new ReviewService(repo);
   });
 
@@ -62,5 +62,21 @@ describe('ReviewService', () => {
   ] as const)('mappe la réponse %s vers %s', async (result, code) => {
     repo.respond.mockResolvedValue(result);
     await expect(service.respond('u', 'r', key, { body: 'Merci' })).rejects.toMatchObject({ code });
+  });
+
+  it('normalise un signalement et exige une clé', async () => {
+    repo.report.mockResolvedValue({ id: 'f', status: 'OPEN' } as never);
+    await expect(service.report('u', 'r', key, { reason: 'SPAM', comment: '  détail ' })).resolves.toMatchObject({ id: 'f' });
+    expect(repo.report).toHaveBeenCalledWith(expect.objectContaining({ dto: { reason: 'SPAM', comment: 'détail' }, requestHash: expect.stringMatching(/^[0-9a-f]{64}$/) }));
+    await expect(service.report('u', 'r', undefined, { reason: 'SPAM' })).rejects.toMatchObject({ code: 'idempotency_key_invalid' });
+  });
+
+  it('normalise le motif de modération et mappe les erreurs', async () => {
+    repo.moderate.mockResolvedValue({ id: 'r' } as never);
+    await expect(service.moderate('a', 'r', { decision: 'HIDE', reason: '  motif  ' })).resolves.toMatchObject({ id: 'r' });
+    expect(repo.moderate).toHaveBeenCalledWith({ adminId: 'a', reviewId: 'r', dto: { decision: 'HIDE', reason: 'motif' } });
+    await expect(service.moderate('a', 'r', { decision: 'HIDE', reason: ' ' })).rejects.toMatchObject({ code: 'missing_reason' });
+    repo.moderate.mockResolvedValue('INVALID_STATE');
+    await expect(service.moderate('a', 'r', { decision: 'RESTORE', reason: 'motif' })).rejects.toMatchObject({ code: 'review_not_editable' });
   });
 });

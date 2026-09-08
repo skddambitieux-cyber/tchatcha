@@ -18,6 +18,6 @@ import { SearchModule } from '../search/search.module';
   imports: [TypeOrmModule.forFeature([ValidationTask, Ban]), AuthModule, MediaModule, ProfessionalsModule, SearchModule],
   controllers: [AdminVerificationsController],
   providers: [AdminGuard, AdminVerificationService, { provide: AdminVerificationRepositoryToken, useClass: TypeOrmAdminVerificationRepository }],
-  exports: [TypeOrmModule],
+  exports: [TypeOrmModule, AdminGuard],
 })
 export class AdminModule {}

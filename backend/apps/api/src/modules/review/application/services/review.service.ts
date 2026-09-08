@@ -2,8 +2,8 @@ import { createHash } from 'node:crypto';
 import { Inject, Injectable } from '@nestjs/common';
 import { ReviewRepositoryPortToken } from '../ports/review-repository.port';
 import type { ReviewRepositoryPort } from '../ports/review-repository.port';
-import type { CreateReviewDto, RespondReviewDto, UpdateReviewDto } from '../../interface/http/dto/review.dto';
-import { ReviewAlreadyEditedError, ReviewAlreadyExistsError, ReviewBookingNotFoundError, ReviewEditWindowClosedError, ReviewForbiddenError, ReviewIdempotencyKeyError, ReviewIdempotencyMismatchError, ReviewInvalidStateError, ReviewMediaInvalidError, ReviewNotEditableError, ReviewNotFoundError, ReviewResponseExistsError } from '../../domain/errors/review-errors';
+import type { CreateReviewDto, ModerateReviewDto, ReportReviewDto, RespondReviewDto, UpdateReviewDto } from '../../interface/http/dto/review.dto';
+import { ReviewAlreadyEditedError, ReviewAlreadyExistsError, ReviewBookingNotFoundError, ReviewEditWindowClosedError, ReviewForbiddenError, ReviewIdempotencyKeyError, ReviewIdempotencyMismatchError, ReviewInvalidStateError, ReviewMediaInvalidError, ReviewMissingReasonError, ReviewNotEditableError, ReviewNotFoundError, ReviewReportForbiddenError, ReviewResponseExistsError } from '../../domain/errors/review-errors';
 
 @Injectable()
 export class ReviewService {
@@ -52,5 +52,29 @@ export class ReviewService {
     if (result === 'ALREADY_EXISTS') throw new ReviewResponseExistsError();
     if (result === 'IDEMPOTENCY_MISMATCH') throw new ReviewIdempotencyMismatchError();
     return result;
+  }
+
+  async report(actorId: string, reviewId: string, key: string | undefined, dto: ReportReviewDto) {
+    if (!key || !/^[0-9a-f-]{36}$/i.test(key)) throw new ReviewIdempotencyKeyError();
+    const normalized = { ...dto, comment: dto.comment?.trim() || undefined };
+    const hash = createHash('sha256').update(JSON.stringify(normalized)).digest('hex');
+    const result = await this.repository.report({ actorId, reviewId, idempotencyKey: key, requestHash: hash, dto: normalized });
+    if (result === 'NOT_FOUND') throw new ReviewNotFoundError();
+    if (result === 'FORBIDDEN') throw new ReviewReportForbiddenError();
+    if (result === 'IDEMPOTENCY_MISMATCH') throw new ReviewIdempotencyMismatchError();
+    return result;
+  }
+
+  async moderate(adminId: string, reviewId: string, dto: ModerateReviewDto) {
+    const reason = dto.reason.trim();
+    if (!reason) throw new ReviewMissingReasonError();
+    const result = await this.repository.moderate({ adminId, reviewId, dto: { ...dto, reason } });
+    if (result === 'NOT_FOUND') throw new ReviewNotFoundError();
+    if (result === 'INVALID_STATE') throw new ReviewNotEditableError();
+    return result;
+  }
+
+  async listModeration(status = 'OPEN') {
+    return this.repository.listModeration(status);
   }
 }

@@ -1,9 +1,10 @@
-import { Body, Controller, Get, Headers, Param, ParseIntPipe, Patch, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Headers, HttpCode, HttpStatus, Param, ParseIntPipe, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '../../../auth/interface/http/guards/auth.guard';
 import { CurrentUser } from '../../../auth/interface/http/decorators/current-user.decorator';
 import { UserNotFoundError } from '../../../auth/domain/errors/auth-errors';
 import { ReviewService } from '../../application/services/review.service';
-import { CreateReviewDto, RespondReviewDto, UpdateReviewDto } from './dto/review.dto';
+import { CreateReviewDto, ModerateReviewDto, ReportReviewDto, RespondReviewDto, UpdateReviewDto } from './dto/review.dto';
+import { AdminGuard } from '../../../admin/interface/http/guards/admin.guard';
 
 @Controller('reviews')
 @UseGuards(AuthGuard)
@@ -25,6 +26,30 @@ export class ReviewController {
   respond(@CurrentUser() userId: string | undefined, @Param('id') id: string, @Headers('idempotency-key') key: string | undefined, @Body() dto: RespondReviewDto) {
     if (!userId) throw new UserNotFoundError();
     return this.reviews.respond(userId, id, key, dto);
+  }
+
+  @Post(':id/report')
+  report(@CurrentUser() userId: string | undefined, @Param('id') id: string, @Headers('idempotency-key') key: string | undefined, @Body() dto: ReportReviewDto) {
+    if (!userId) throw new UserNotFoundError();
+    return this.reviews.report(userId, id, key, dto);
+  }
+}
+
+@Controller('admin/reviews')
+@UseGuards(AdminGuard)
+export class AdminReviewsController {
+  constructor(private readonly reviews: ReviewService) {}
+
+  @Get()
+  list(@Query('status') status = 'OPEN') {
+    return this.reviews.listModeration(status);
+  }
+
+  @Post(':id/moderate')
+  @HttpCode(HttpStatus.OK)
+  moderate(@CurrentUser() adminId: string | undefined, @Param('id') id: string, @Body() dto: ModerateReviewDto) {
+    if (!adminId) throw new UserNotFoundError();
+    return this.reviews.moderate(adminId, id, dto);
   }
 }
 

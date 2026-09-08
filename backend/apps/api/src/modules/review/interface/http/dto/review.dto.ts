@@ -1,5 +1,5 @@
 import { Type } from 'class-transformer';
-import { ArrayMaxSize, ArrayUnique, IsArray, IsInt, IsOptional, IsString, IsUUID, Max, MaxLength, Min, IsNotEmpty } from 'class-validator';
+import { ArrayMaxSize, ArrayUnique, IsArray, IsIn, IsInt, IsNotEmpty, IsOptional, IsString, IsUUID, Max, MaxLength, Min } from 'class-validator';
 
 export class CreateReviewDto {
   @IsUUID('4') booking_id!: string;
@@ -24,6 +24,16 @@ export class UpdateReviewDto {
 
 export class RespondReviewDto {
   @IsString() @IsNotEmpty() @MaxLength(500) body!: string;
+}
+
+export class ReportReviewDto {
+  @IsString() @IsIn(['SPAM','HARASSMENT','HATE_OR_DISCRIMINATION','PERSONAL_DATA','FRAUD','IRRELEVANT','OTHER']) reason!: string;
+  @IsOptional() @IsString() @MaxLength(500) comment?: string;
+}
+
+export class ModerateReviewDto {
+  @IsString() @IsIn(['HIDE','RESTORE']) decision!: 'HIDE' | 'RESTORE';
+  @IsString() @IsNotEmpty() @MaxLength(1000) reason!: string;
 }
 
 export interface ReviewView {

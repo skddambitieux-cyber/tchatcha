@@ -216,6 +216,40 @@ describe('FCT-016A reviews', () => {
     expect(results.map((r) => r.status).sort()).toEqual([201, 409]);
   });
 
+  it('signale avec motif, protège le doublon et masque/rétablit sans suppression', async () => {
+    const created = await create(validBody(await seedBooking('COMPLETED', 10)), randomUUID(), clientToken).expect(201);
+    const key = randomUUID();
+    const report = await app.http.post(`/api/v1/reviews/${created.body.id}/report`).set('Authorization', `Bearer ${clientToken}`).set('Idempotency-Key', key).send({ reason: 'SPAM' }).expect(201);
+    await app.http.post(`/api/v1/reviews/${created.body.id}/report`).set('Authorization', `Bearer ${clientToken}`).set('Idempotency-Key', key).send({ reason: 'SPAM' }).expect(201);
+    await app.http.post(`/api/v1/reviews/${created.body.id}/report`).set('Authorization', `Bearer ${clientToken}`).set('Idempotency-Key', randomUUID()).send({ reason: 'FRAUD' }).expect(409);
+    await app.http.post(`/api/v1/reviews/${created.body.id}/report`).set('Authorization', `Bearer ${proToken}`).set('Idempotency-Key', randomUUID()).send({ reason: 'HARASSMENT' }).expect(201);
+    await app.http.post(`/api/v1/reviews/${created.body.id}/report`).set('Authorization', `Bearer ${clientToken}`).set('Idempotency-Key', randomUUID()).send({}).expect(400);
+    await app.http.post(`/api/v1/reviews/${created.body.id}/report`).set('Authorization', `Bearer ${adminToken}`).set('Idempotency-Key', randomUUID()).send({ reason: 'SPAM' }).expect(403);
+    expect(report.body.status).toBe('OPEN');
+    expect((await app.http.get(`/api/v1/professionals/${proId}/reviews`)).body.data).toHaveLength(0);
+    await app.http.post(`/api/v1/admin/reviews/${created.body.id}/moderate`).set('Authorization', `Bearer ${adminToken}`).send({ decision: 'HIDE', reason: 'Contenu interdit' }).expect(200);
+    expect((await db.query(`SELECT count(*)::int AS n FROM review.reviews WHERE id=$1`, [created.body.id]))[0].n).toBe(1);
+    await app.http.post(`/api/v1/admin/reviews/${created.body.id}/moderate`).set('Authorization', `Bearer ${adminToken}`).send({ decision: 'RESTORE', reason: 'Contrôle terminé' }).expect(200);
+    const listed = await app.http.get(`/api/v1/professionals/${proId}/reviews`).expect(200);
+    expect(listed.body.data).toHaveLength(1);
+    expect(listed.body.averages).toMatchObject({ count: 1, rating: 5 });
+  });
+
+  it('refuse la modération sans motif, aux rôles non admin et gère les courses', async () => {
+    const created = await create(validBody(await seedBooking('COMPLETED', 10)), randomUUID(), clientToken).expect(201);
+    const report = () => app.http.post(`/api/v1/reviews/${created.body.id}/report`).set('Authorization', `Bearer ${clientToken}`).set('Idempotency-Key', randomUUID()).send({ reason: 'SPAM' });
+    await report().expect(201);
+    for (const token of [clientToken, proToken]) {
+      await app.http.post(`/api/v1/admin/reviews/${created.body.id}/moderate`).set('Authorization', `Bearer ${token}`).send({ decision: 'HIDE', reason: 'Non' }).expect(403);
+    }
+    await app.http.post(`/api/v1/admin/reviews/${created.body.id}/moderate`).set('Authorization', `Bearer ${adminToken}`).send({ decision: 'HIDE', reason: '' }).expect(400);
+    const results = await Promise.all([
+      app.http.post(`/api/v1/admin/reviews/${created.body.id}/moderate`).set('Authorization', `Bearer ${adminToken}`).send({ decision: 'HIDE', reason: 'A' }),
+      app.http.post(`/api/v1/admin/reviews/${created.body.id}/moderate`).set('Authorization', `Bearer ${adminToken}`).send({ decision: 'HIDE', reason: 'B' }),
+    ]);
+    expect(results.every((r) => [200, 409].includes(r.status))).toBe(true);
+  });
+
   function validBody(booking_id: string) { return { booking_id, rating: 5, punctuality: 5, quality: 5, price_ratio: 5, politeness: 5 }; }
   function create(body: Record<string, unknown>, key: string, token: string) { return app.http.post('/api/v1/reviews').set('Authorization', `Bearer ${token}`).set('Idempotency-Key', key).send(body); }
 
@@ -242,6 +276,7 @@ describe('FCT-016A reviews', () => {
   async function clean() {
     if (!db) return;
     await db.query(`DELETE FROM audit.logs WHERE actor_id IN (SELECT id FROM users.users WHERE phone LIKE $1)`, [PREFIX]);
+    await db.query(`DELETE FROM admin.validation_tasks WHERE entity_type='REVIEW'`);
     await db.query(`DELETE FROM media.files WHERE owner_type='REVIEW' AND owner_id IN (SELECT id FROM review.reviews WHERE reviewer_id IN (SELECT id FROM users.users WHERE phone LIKE $1))`, [PREFIX]);
     await db.query(`DELETE FROM review.reviews WHERE reviewer_id IN (SELECT id FROM users.users WHERE phone LIKE $1)`, [PREFIX]);
     await db.query(`DELETE FROM review.professional_review_stats WHERE professional_id IN (SELECT id FROM pros.profiles WHERE user_id IN (SELECT id FROM users.users WHERE phone LIKE $1))`, [PREFIX]);

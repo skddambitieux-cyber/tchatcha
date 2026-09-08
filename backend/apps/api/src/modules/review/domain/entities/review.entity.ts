@@ -172,6 +172,21 @@ export class ReviewFlag {
   @Column({ type: 'text', nullable: true })
   comment: string | null;
 
+  @Column({ type: 'varchar', length: 16, default: 'OPEN' })
+  status: string;
+
+  @Column({ type: 'uuid', nullable: true })
+  idempotency_key: string | null;
+
+  @Column({ type: 'char', length: 64, nullable: true })
+  request_hash: string | null;
+
+  @Column({ type: 'timestamptz', nullable: true })
+  resolved_at: Date | null;
+
+  @Column({ type: 'uuid', nullable: true })
+  resolved_by: string | null;
+
   @Column({ type: 'timestamptz' })
   created_at: Date;
 }
