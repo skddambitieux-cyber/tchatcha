@@ -203,6 +203,25 @@ Règles de calcul :
 |---|---|
 | BR-130 | Impacts et seuils ci-dessus ; pondérations en config, jamais en code. | 06d A2, 19 §7 |
 
+### Décisions produit post-FCT-016B2
+
+Les impacts et seuils chiffrés documentés dans BR-020 et BR-130 ne constituent
+pas une formule validée pour le pilote. Aucun calcul provisoire du Trust Score ne
+doit être ajouté. Un lot distinct devra valider formule, pondérations,
+versionnement et recalcul avant toute mise en œuvre ou promesse produit.
+
+BR-094 est interprétée pour le pilote comme une hypothèse configurable : 10 % sur
+la première prestation puis 6 % sur les suivantes entre les mêmes utilisateurs,
+sans frais client. Ces taux ne sont pas une tarification commerciale définitive
+et ne doivent pas être figés dans le code.
+
+Le modèle opérationnel est hybride (autonome ou assisté), avec choix final du
+client. Les coordonnées restent masquées avant l’étape autorisée ; la détection
+anti-contournement est graduelle, sans sanction automatique sur simple détection,
+avec avertissement, analyse, suspension progressive et recours. Escrow,
+assistance, remboursement, garantie, litige et avis vérifiés restent internes.
+Voir `docs/43-modele-operationnel-monetisation-pilote.md`.
+
 ---
 
 ## 8. Règles de fin de vie / RGPD

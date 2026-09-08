@@ -130,3 +130,26 @@ Règle : **aucune FCT n'est implémentée sans son GWT approuvé** (discipline d
 02 ADR ────────────┘         ↓
                       08-api.md (Étape 4)
 ```
+
+## 7. Décisions produit post-FCT-016
+
+Le modèle de mise en relation est hybride : recherche autonome avec filtres
+métier, zone/distance, disponibilité, vérification, note et Trust Score, ou
+parcours assisté avec qualification TCHATCHA et présélection de deux ou trois
+artisans (un seul possible pour urgence ou service standardisé). Le client garde
+le choix final. Devis, réservation, paiement, protection, litige et avis restent
+dans TCHATCHA.
+
+La politique anti-contournement masque les coordonnées avant l’étape autorisée,
+privilégie la messagerie interne et applique une détection graduelle sans sanction
+automatique sur simple signal. Les mesures progressent de l’avertissement au
+recours, dans le respect des données personnelles.
+
+Le modèle de commission 10 % première prestation / 6 % suivantes est une
+hypothèse configurable du pilote, sans frais client et sans valeur définitivement
+codée. Le paiement reste simulé tant qu’un prestataire financier agréé n’est pas
+validé juridiquement et réglementairement au Bénin/UEMOA.
+
+Le Journal TCHATCHA est cadré comme une future fonctionnalité de contenu local,
+publications sponsorisées, modération, statistiques et demande de devis depuis
+une publication. Il n’est pas une dépendance du chemin critique immédiat du MVP.

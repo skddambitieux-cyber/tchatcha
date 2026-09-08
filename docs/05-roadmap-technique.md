@@ -159,6 +159,19 @@ bout en bout sur Android + iOS, avec tests et CI verts.
 - Site web complet, API publique
 - Nouveaux pays (Togo, Burkina, Niger…)
 
+### Décisions produit post-FCT-016
+
+Le pilote suit un modèle hybride : recherche autonome par le client et parcours
+assisté par TCHATCHA, avec choix final du client. Dans les deux cas, devis,
+réservation, paiement, protection, litige et avis restent internes à TCHATCHA.
+Le pilote est limité au couloir Cotonou–Abomey-Calavi.
+
+Les éléments indispensables au pilote restent prioritaires, puis vient le
+parcours mobile minimal. Le Journal TCHATCHA complet, ses publications
+sponsorisées et sa monétisation sont postérieurs à la validation du besoin
+terrain ; une version légère n’est admise que si elle reste hors chemin critique.
+Voir `docs/43-modele-operationnel-monetisation-pilote.md`.
+
 ---
 
 ## Jalons (gros plan)

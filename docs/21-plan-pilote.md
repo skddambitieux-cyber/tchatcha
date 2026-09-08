@@ -111,3 +111,28 @@ revue du modèle d'acquisition et/ou du découpage pilote.
 | P2 — Croissance | T0 + 19-24 sem. |
 | P3 — Consolidation + décision Go/No-Go | T0 + 25-28 sem. |
 | M6 — Lancement public (si GO) | T0 + 30 sem. |
+
+## 11. Décisions opérationnelles post-FCT-016
+
+Le pilote teste deux parcours : recherche autonome avec filtres et consultation
+de profils, ou qualification assistée par TCHATCHA avec présélection de deux ou
+trois artisans. Le client conserve le choix final ; l’affectation à un seul
+artisan est limitée aux urgences et services standardisés. Devis, réservation,
+paiement, protection, litige et avis restent dans TCHATCHA.
+
+Les coordonnées sont masquées avant l’étape autorisée et la messagerie interne
+est privilégiée. La détection anti-contournement est graduelle et ne sanctionne
+pas automatiquement une simple détection. Les indicateurs de suivi ajoutés au
+tableau de bord sont conversion, contournement confirmé, recours, marge nette,
+coût de paiement, réachat, satisfaction et part des parcours autonomes/assistés.
+
+Les taux 10 % première prestation et 6 % suivantes sont des hypothèses de pilote
+configurables, sans frais client et sans valeur commerciale définitive. Le
+paiement reste simulé jusqu’à validation juridique/réglementaire du prestataire
+financier Bénin/UEMOA ; aucun compte ou numéro Mobile Money personnel du fondateur
+ne doit être utilisé.
+
+Le Journal complet est reporté après validation du besoin terrain. Une version
+très légère peut être expérimentée uniquement si elle ne perturbe pas le parcours
+principal. Voir `docs/43-modele-operationnel-monetisation-pilote.md` pour les
+risques, hypothèses, décisions ouvertes et futurs lots.
