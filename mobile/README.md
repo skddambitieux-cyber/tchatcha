@@ -29,3 +29,21 @@ l’API, est reporté à un lot dédié ; aucun identifiant technique n’est de
 
 Aucune donnée personnelle réelle, clé, secret, OTP ou token ne doit être
 ajouté au dépôt ou affiché dans l’application.
+
+## R-02A — socle Client
+
+R-02A ajoute la restauration de session, le stockage Android sécurisé via
+Keystore, le rafraîchissement rotatif single-flight et un accueil Client
+alimenté par `/me`, `/geo/countries`, les divisions de `BJ` et `/categories`.
+Les communes et catégories viennent de l’API : aucun UUID n’est affiché ou
+saisi. La recherche, les fiches professionnelles et les demandes sont
+reportées à R-02B/R-02C.
+
+Les tokens sont conservés uniquement par `flutter_secure_storage`, jamais dans
+les logs, erreurs ou préférences en clair. Les tests utilisent
+`MemorySessionStore` et des doubles HTTP ; ils ne dépendent ni d’un téléphone,
+ni de Supabase.
+
+Dépendances ajoutées : `http` pour le transport injectable,
+`flutter_secure_storage` pour Android Keystore et `uuid` pour les clés
+d’idempotence futures. Les versions sont verrouillées dans `pubspec.lock`.
