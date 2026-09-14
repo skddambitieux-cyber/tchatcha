@@ -2,6 +2,10 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 
+import '../../core/api/api_client.dart';
+import '../search/search_page.dart';
+import '../search/search_repository.dart';
+
 typedef HomeLoader = Future<HomeData> Function();
 
 class HomeData {
@@ -10,17 +14,27 @@ class HomeData {
     required this.role,
     required this.communes,
     required this.categories,
+    this.communeOptions = const [],
+    this.categoryOptions = const [],
   });
   final String fullName;
   final String role;
   final List<String> communes;
   final List<String> categories;
+  final List<CatalogOption> communeOptions;
+  final List<CatalogOption> categoryOptions;
 }
 
 class HomePage extends StatefulWidget {
-  const HomePage({super.key, required this.load, required this.onLogout});
+  const HomePage({
+    super.key,
+    required this.load,
+    required this.onLogout,
+    this.api,
+  });
   final HomeLoader load;
   final VoidCallback onLogout;
+  final ApiClient? api;
   @override
   State<HomePage> createState() => _HomePageState();
 }
@@ -90,6 +104,22 @@ class _HomePageState extends State<HomePage> {
                 title: Text(name),
               ),
             ),
+            if (widget.api != null) ...[
+              const SizedBox(height: 20),
+              FilledButton.icon(
+                onPressed: () => Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => SearchPage(
+                      repository: SearchRepository(client: widget.api!),
+                      communes: data.communeOptions,
+                      categories: data.categoryOptions,
+                    ),
+                  ),
+                ),
+                icon: const Icon(Icons.search),
+                label: const Text('Rechercher un artisan'),
+              ),
+            ],
           ],
         );
       },
@@ -122,5 +152,27 @@ HomeData homeDataFromResponses(
         .map((item) => item['name'].toString())
         .toList(),
     categories: categories.map((item) => item['name'].toString()).toList(),
+    communeOptions: divisions
+        .where((item) => item['id'] != null)
+        .where(
+          (item) =>
+              item['name'] == 'Cotonou' || item['name'] == 'Abomey-Calavi',
+        )
+        .map(
+          (item) => CatalogOption(
+            id: item['id'].toString(),
+            name: item['name'].toString(),
+          ),
+        )
+        .toList(),
+    categoryOptions: categories
+        .where((item) => item['id'] != null)
+        .map(
+          (item) => CatalogOption(
+            id: item['id'].toString(),
+            name: item['name'].toString(),
+          ),
+        )
+        .toList(),
   );
 }

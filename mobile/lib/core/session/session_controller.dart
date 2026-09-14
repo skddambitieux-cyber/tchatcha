@@ -34,6 +34,8 @@ class SessionController extends ChangeNotifier {
   ApiClient get _api =>
       ApiClient(transport: transport, accessToken: _tokens?.accessToken);
 
+  ApiClient get apiClient => _api;
+
   String? get accessToken => _tokens?.accessToken;
   bool get authenticated => _tokens != null;
 

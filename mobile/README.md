@@ -47,3 +47,11 @@ ni de Supabase.
 Dépendances ajoutées : `http` pour le transport injectable,
 `flutter_secure_storage` pour Android Keystore et `uuid` pour les clés
 d’idempotence futures. Les versions sont verrouillées dans `pubspec.lock`.
+
+## R-02B — recherche et fiche publique
+
+R-02B ajoute la recherche publique paginée par texte, métier et commune, puis
+la fiche publique d’un professionnel. Les filtres utilisent `/search` et les
+fiches `/professionals/:id`. Les réponses sont limitées aux projections
+publiques du backend : aucun contact, UUID ou identifiant interne n’est affiché.
+La création d’une demande reste réservée à R-02C.

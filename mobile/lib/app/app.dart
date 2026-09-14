@@ -79,6 +79,7 @@ class _SessionGateState extends State<SessionGate> {
     return HomePage(
       load: () async => controller.home!,
       onLogout: controller.logout,
+      api: controller.apiClient,
     );
   }
 }

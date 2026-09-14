@@ -46,6 +46,8 @@ class ApiTransport {
       throw ApiNetworkException(error);
     } on TimeoutException catch (error) {
       throw ApiNetworkException(error);
+    } on http.ClientException catch (error) {
+      throw ApiNetworkException(error);
     }
   }
 
