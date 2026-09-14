@@ -4,6 +4,7 @@ import '../core/session/session_controller.dart';
 import '../core/session/session_store.dart';
 import '../features/auth/auth_page.dart';
 import '../features/home/home_page.dart';
+import '../features/requests/request_repository.dart';
 
 class TchatchaApp extends StatelessWidget {
   const TchatchaApp({
@@ -80,6 +81,11 @@ class _SessionGateState extends State<SessionGate> {
       load: () async => controller.home!,
       onLogout: controller.logout,
       api: controller.apiClient,
+      requestRepository: RequestRepository(
+        client: controller.apiClient,
+        authorizedGet: controller.authorizedGet,
+        authorizedPost: controller.authorizedPost,
+      ),
     );
   }
 }

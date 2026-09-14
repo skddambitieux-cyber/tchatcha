@@ -67,11 +67,15 @@ class ApiClient {
     return _transport.send('GET', path, headers: _headers);
   }
 
-  Future<ApiResponse> post(String path, Map<String, dynamic> body) async {
+  Future<ApiResponse> post(
+    String path,
+    Map<String, dynamic> body, {
+    Map<String, String> headers = const {},
+  }) async {
     return _transport.send(
       'POST',
       path,
-      headers: {..._headers, 'Content-Type': 'application/json'},
+      headers: {..._headers, 'Content-Type': 'application/json', ...headers},
       body: jsonEncode(body),
     );
   }

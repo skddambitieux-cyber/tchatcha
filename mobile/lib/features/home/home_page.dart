@@ -3,6 +3,9 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 
 import '../../core/api/api_client.dart';
+import '../requests/requests_page.dart';
+import '../requests/request_page.dart';
+import '../requests/request_repository.dart';
 import '../search/search_page.dart';
 import '../search/search_repository.dart';
 
@@ -31,10 +34,12 @@ class HomePage extends StatefulWidget {
     required this.load,
     required this.onLogout,
     this.api,
+    this.requestRepository,
   });
   final HomeLoader load;
   final VoidCallback onLogout;
   final ApiClient? api;
+  final RequestRepository? requestRepository;
   @override
   State<HomePage> createState() => _HomePageState();
 }
@@ -113,11 +118,39 @@ class _HomePageState extends State<HomePage> {
                       repository: SearchRepository(client: widget.api!),
                       communes: data.communeOptions,
                       categories: data.categoryOptions,
+                      requestRepository: widget.requestRepository,
                     ),
                   ),
                 ),
                 icon: const Icon(Icons.search),
                 label: const Text('Rechercher un artisan'),
+              ),
+            ],
+            if (widget.requestRepository != null) ...[
+              const SizedBox(height: 12),
+              FilledButton(
+                onPressed: () => Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => RequestPage(
+                      repository: widget.requestRepository!,
+                      categoryId: null,
+                      divisionId: null,
+                      categories: data.categoryOptions,
+                      divisions: data.communeOptions,
+                    ),
+                  ),
+                ),
+                child: const Text('Faire une demande'),
+              ),
+              const SizedBox(height: 8),
+              OutlinedButton(
+                onPressed: () => Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) =>
+                        RequestsPage(repository: widget.requestRepository!),
+                  ),
+                ),
+                child: const Text('Mes demandes'),
               ),
             ],
           ],

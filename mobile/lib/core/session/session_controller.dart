@@ -154,11 +154,27 @@ class SessionController extends ChangeNotifier {
     return _get(path);
   }
 
+  Future<ApiResponse> authorizedPost(
+    String path,
+    Map<String, dynamic> body, {
+    Map<String, String> headers = const {},
+  }) async {
+    final response = await _post(path, body, headers: headers);
+    if (response.statusCode != 401) return response;
+    await refresh();
+    if (_tokens == null) return response;
+    return _post(path, body, headers: headers);
+  }
+
   Future<ApiResponse> _get(String path) async {
     return _api.get(path);
   }
 
-  Future<ApiResponse> _post(String path, Map<String, dynamic> body) async {
-    return _api.post(path, body);
+  Future<ApiResponse> _post(
+    String path,
+    Map<String, dynamic> body, {
+    Map<String, String> headers = const {},
+  }) async {
+    return _api.post(path, body, headers: headers);
   }
 }

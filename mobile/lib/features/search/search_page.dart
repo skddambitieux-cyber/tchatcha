@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../requests/request_repository.dart';
 import 'professional_page.dart';
 import 'search_controller.dart' as search;
 import 'search_repository.dart';
@@ -10,10 +11,12 @@ class SearchPage extends StatefulWidget {
     required this.repository,
     required this.communes,
     required this.categories,
+    this.requestRepository,
   });
   final SearchRepository repository;
   final List<CatalogOption> communes;
   final List<CatalogOption> categories;
+  final RequestRepository? requestRepository;
 
   @override
   State<SearchPage> createState() => _SearchPageState();
@@ -132,6 +135,7 @@ class _SearchPageState extends State<SearchPage> {
                   MaterialPageRoute(
                     builder: (_) => ProfessionalPage(
                       repository: widget.repository,
+                      requestRepository: widget.requestRepository,
                       professionalId: item.id,
                     ),
                   ),

@@ -56,6 +56,72 @@ Never _unexpectedRoute(http.BaseRequest request) {
 }
 
 void main() {
+  test('authorizedPost rafraîchit puis rejoue avec la même clé', () async {
+    var requestCalls = 0;
+    var refreshCalls = 0;
+    final keys = <String>[];
+    final methods = <String>[];
+    final paths = <String>[];
+    final authorizations = <String>[];
+    final bodies = <String>[];
+    final store = MemorySessionStore()
+      ..tokens = const SessionTokens(accessToken: 'old', refreshToken: 'old-r');
+    final client = _FakeClient((path, request) async {
+      if (path == '/api/v1/requests') {
+        requestCalls++;
+        methods.add(request.method);
+        paths.add(path);
+        authorizations.add(request.headers['Authorization'] ?? '');
+        keys.add(request.headers['Idempotency-Key']!);
+        bodies.add(request is http.Request ? request.body : '');
+        return http.Response('{}', requestCalls == 1 ? 401 : 201);
+      }
+      if (path == '/api/v1/me') {
+        return http.Response('{"full_name":"A","roles":["CLIENT"]}', 200);
+      }
+      if (path == '/api/v1/geo/countries') {
+        return http.Response('{"items":[{"code":"BJ"}]}', 200);
+      }
+      if (path == '/api/v1/geo/countries/BJ/divisions') {
+        return http.Response('{"items":[]}', 200);
+      }
+      if (path == '/api/v1/categories') {
+        return http.Response('{"items":[]}', 200);
+      }
+      if (path == '/api/v1/auth/refresh') {
+        refreshCalls++;
+        return http.Response(
+          '{"access_token":"new","refresh_token":"new-r"}',
+          200,
+        );
+      }
+      throw StateError('Route inattendue dans le fake: $path');
+    });
+    final controller = SessionController(store: store, client: client);
+    await controller.restore();
+
+    final response = await controller.authorizedPost(
+      '/requests',
+      const {'title': 'T'},
+      headers: const {'Idempotency-Key': 'same-key'},
+    );
+
+    expect(response.statusCode, 201);
+    expect(controller.authenticated, isTrue);
+    expect(requestCalls, 2);
+    expect(refreshCalls, 1);
+    expect(methods, ['POST', 'POST']);
+    expect(paths, ['/api/v1/requests', '/api/v1/requests']);
+    expect(authorizations, hasLength(2));
+    expect(authorizations, everyElement(isNotEmpty));
+    expect(authorizations.first, isNot(authorizations.last));
+    expect(keys, ['same-key', 'same-key']);
+    expect(bodies, hasLength(2));
+    expect(bodies.first, bodies.last);
+    expect((await store.read())?.accessToken, 'new');
+    client.close();
+  });
+
   testWidgets('absence de session affiche LOGIN après restauration', (
     tester,
   ) async {

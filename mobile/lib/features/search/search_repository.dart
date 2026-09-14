@@ -112,6 +112,9 @@ class ProfessionalProfile {
     required this.commune,
     required this.services,
     required this.portfolioCount,
+    this.categoryId,
+    this.categoryName,
+    this.divisionId,
   });
   final String id;
   final String? businessName;
@@ -123,24 +126,38 @@ class ProfessionalProfile {
   final String? commune;
   final List<String> services;
   final int portfolioCount;
+  final String? categoryId;
+  final String? categoryName;
+  final String? divisionId;
 
-  factory ProfessionalProfile.fromJson(Map<String, dynamic> json) =>
-      ProfessionalProfile(
-        id: json['id'].toString(),
-        businessName: json['business_name']?.toString(),
-        headline: json['headline']?.toString(),
-        description: json['description']?.toString(),
-        verified: json['verified'] == true,
-        ratingAvg: (json['rating_avg'] as num?)?.toDouble() ?? 0,
-        ratingCount: (json['rating_count'] as num?)?.toInt() ?? 0,
-        commune: (json['location'] as Map?)?['division_name']?.toString(),
-        services: (json['services'] as List? ?? const [])
-            .whereType<Map>()
-            .map((item) => item['title']?.toString())
-            .whereType<String>()
-            .toList(),
-        portfolioCount: (json['portfolio'] as List? ?? const []).length,
-      );
+  factory ProfessionalProfile.fromJson(Map<String, dynamic> json) {
+    final services = (json['services'] as List? ?? const [])
+        .whereType<Map>()
+        .toList();
+    final location = json['location'] as Map?;
+    return ProfessionalProfile(
+      id: json['id'].toString(),
+      businessName: json['business_name']?.toString(),
+      headline: json['headline']?.toString(),
+      description: json['description']?.toString(),
+      verified: json['verified'] == true,
+      ratingAvg: (json['rating_avg'] as num?)?.toDouble() ?? 0,
+      ratingCount: (json['rating_count'] as num?)?.toInt() ?? 0,
+      commune: location?['division_name']?.toString(),
+      services: services
+          .map((item) => item['title']?.toString())
+          .whereType<String>()
+          .toList(),
+      portfolioCount: (json['portfolio'] as List? ?? const []).length,
+      categoryId: services.isEmpty
+          ? null
+          : services.first['category_id']?.toString(),
+      categoryName: services.isEmpty
+          ? null
+          : services.first['category_name']?.toString(),
+      divisionId: location?['division_id']?.toString(),
+    );
+  }
 }
 
 class SearchRepository {

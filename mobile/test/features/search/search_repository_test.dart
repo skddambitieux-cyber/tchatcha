@@ -7,6 +7,7 @@ import 'package:mobile/core/api/api_client.dart';
 import 'package:mobile/features/search/search_controller.dart' as search;
 import 'package:mobile/features/search/professional_page.dart';
 import 'package:mobile/features/search/search_repository.dart';
+import 'package:mobile/features/requests/request_repository.dart';
 
 class _FakeClient extends http.BaseClient {
   _FakeClient(this.handler);
@@ -188,4 +189,73 @@ void main() {
     expect(calls, 1);
     api.close();
   });
+
+  testWidgets(
+    'fiche préremplit la demande sans cibler exclusivement l’artisan',
+    (tester) async {
+      Map<String, dynamic>? sentBody;
+      final api = ApiClient(
+        client: _FakeClient((request) async {
+          return http.Response(
+            '{"id":"pro-1","business_name":"Express",'
+            '"rating_avg":4.8,"rating_count":12,'
+            '"services":[{"title":"Dépannage","category_id":"cat-1",'
+            '"category_name":"Plomberie"}],'
+            '"location":{"division_id":"div-1","division_name":"Cotonou"}}',
+            200,
+          );
+        }),
+      );
+      final requestRepository = RequestRepository(
+        client: api,
+        authorizedPost: (path, body, {headers = const {}}) async {
+          sentBody = body;
+          return const ApiResponse(
+            201,
+            '{"id":"request-1","title":"T","description":"D",'
+            '"status":"OPEN","created_at":"2026-09-14"}',
+          );
+        },
+        authorizedGet: (path) async => const ApiResponse(
+          200,
+          '{"id":"request-1","title":"T","description":"D",'
+          '"status":"OPEN","created_at":"2026-09-14"}',
+        ),
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ProfessionalPage(
+            repository: SearchRepository(client: api),
+            professionalId: 'pro-1',
+            requestRepository: requestRepository,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(
+        find.textContaining('pas adressée exclusivement à cet artisan'),
+        findsOneWidget,
+      );
+      await tester.tap(find.text('Faire une demande'));
+      await tester.pumpAndSettle();
+      expect(find.text('cat-1'), findsNothing);
+      expect(find.text('div-1'), findsNothing);
+      expect(find.text('Plomberie'), findsOneWidget);
+      expect(find.text('Cotonou'), findsOneWidget);
+      await tester.enterText(find.byType(TextField).at(0), 'T');
+      await tester.enterText(find.byType(TextField).at(1), 'D');
+      final submitFinder = find.byKey(const ValueKey('request-submit-button'));
+      await tester.ensureVisible(submitFinder);
+      await tester.pumpAndSettle();
+      expect(submitFinder, findsOneWidget);
+      await tester.tap(submitFinder);
+      await tester.pumpAndSettle();
+
+      expect(sentBody?['category_id'], 'cat-1');
+      expect(sentBody?['location'], {'division_id': 'div-1'});
+      expect(sentBody?.containsKey('professional_id'), isFalse);
+      api.close();
+    },
+  );
 }
