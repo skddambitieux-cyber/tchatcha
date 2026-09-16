@@ -32,8 +32,8 @@ describe('Lot 3C — création initiale de devis', () => {
     const professional = await seedUser(`${PREFIX}00002`, 'PROFESSIONAL');
     proToken = professional.token; proId = randomUUID();
     await db.query(`INSERT INTO pros.profiles
-      (id,user_id,business_name,status,verified,currency,country_code,created_at,updated_at)
-      VALUES($1,$2,'Pro devis','ACTIVE',false,'XOF','BJ',now(),now())`, [proId, professional.id]);
+      (id,user_id,business_name,description,status,verified,currency,country_code,created_at,updated_at)
+      VALUES($1,$2,'Pro devis','Description de test','ACTIVE',false,'XOF','BJ',now(),now())`, [proId, professional.id]);
     await db.query(`INSERT INTO pros.services
       (id,professional_id,category_id,title,is_primary,created_at,updated_at)
       VALUES($1,$2,$3,'Plomberie',true,now(),now())`, [randomUUID(), proId, categoryId]);
@@ -176,8 +176,8 @@ describe('Lot 3C — création initiale de devis', () => {
     const competitorProId = randomUUID();
     const competitorQuoteId = randomUUID();
     await db.query(`INSERT INTO pros.profiles
-      (id,user_id,business_name,status,verified,currency,country_code,created_at,updated_at)
-      VALUES($1,$2,'Pro concurrent','ACTIVE',false,'XOF','BJ',now(),now())`, [competitorProId, competitor.id]);
+      (id,user_id,business_name,description,status,verified,currency,country_code,created_at,updated_at)
+      VALUES($1,$2,'Pro concurrent','Description de test','ACTIVE',false,'XOF','BJ',now(),now())`, [competitorProId, competitor.id]);
     await db.query(`INSERT INTO market.quotes
       (id,request_id,professional_id,created_by,price,currency,status,version,created_at,updated_at)
       VALUES($1,$2,$3,$4,10500,'XOF','PENDING',1,now(),now())`,
@@ -204,8 +204,8 @@ describe('Lot 3C — création initiale de devis', () => {
     const withdrawQuoteId = created.body.id as string;
     const other = await seedUser(`${PREFIX}00004`, 'PROFESSIONAL');
     await db.query(`INSERT INTO pros.profiles
-      (id,user_id,business_name,status,verified,currency,country_code,created_at,updated_at)
-      VALUES($1,$2,'Autre pro','ACTIVE',false,'XOF','BJ',now(),now())`, [randomUUID(), other.id]);
+      (id,user_id,business_name,description,status,verified,currency,country_code,created_at,updated_at)
+      VALUES($1,$2,'Autre pro','Description de test','ACTIVE',false,'XOF','BJ',now(),now())`, [randomUUID(), other.id]);
     await app.http.post(`/api/v1/quotes/${withdrawQuoteId}/withdraw`).set(auth(other.token))
       .send({ version: 1 }).expect(404);
     await app.http.post(`/api/v1/quotes/${withdrawQuoteId}/withdraw`).set(auth(proToken))

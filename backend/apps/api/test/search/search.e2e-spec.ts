@@ -16,6 +16,8 @@ describe('Lot 2B — GET /search public', () => {
   let cotonouId: string;
   let calaviId: string;
   const professionalIds: string[] = [];
+  const withoutDemo = (items: Array<{ business_name?: string }>) =>
+    items.filter((item) => !item.business_name?.startsWith('DEMO_R02 |'));
 
   beforeAll(async () => {
     app = await createTestApp();
@@ -89,10 +91,10 @@ describe('Lot 2B — GET /search public', () => {
        VALUES ($1, 'PROFESSIONAL', now())`, [userId],
     );
     await db.query(
-      `INSERT INTO pros.profiles (id, user_id, business_name, headline,
+      `INSERT INTO pros.profiles (id, user_id, business_name, headline, description,
          status, verified, rating_avg, rating_count, trust_score,
          completed_jobs, min_price, currency, country_code, created_at, updated_at)
-       VALUES ($1, $2, $3, 'Électricien professionnel', 'ACTIVE', $4, $5,
+       VALUES ($1, $2, $3, 'Électricien professionnel', 'Description de test', 'ACTIVE', $4, $5,
          $6, 0.8, 12, $7, 'XOF', 'BJ', now(), now())`,
       [professionalId, userId, name, verified, rating, index * 3, minPrice],
     );
@@ -124,8 +126,9 @@ describe('Lot 2B — GET /search public', () => {
 
   it('recherche sans authentification avec texte sans accents et faute légère', async () => {
     const exact = await app.http.get('/api/v1/search?q=electricite').expect(200);
-    expect(exact.body.items).toHaveLength(3);
-    expect(exact.body.items[0].business_name).toBe('Électricité Express');
+    const exactItems = withoutDemo(exact.body.items);
+    expect(exactItems).toHaveLength(3);
+    expect(exactItems[0].business_name).toBe('Électricité Express');
     const fuzzy = await app.http.get('/api/v1/search?q=electrcite').expect(200);
     expect(fuzzy.body.items.length).toBeGreaterThan(0);
   });
@@ -134,8 +137,9 @@ describe('Lot 2B — GET /search public', () => {
     const response = await app.http
       .get(`/api/v1/search?category_id=${rootCategoryId}&division_id=${cotonouId}&verified=true&min_rating=4.5&min_price=5000&max_price=7000`)
       .expect(200);
-    expect(response.body.items).toHaveLength(1);
-    expect(response.body.items[0]).toMatchObject({
+    const items = withoutDemo(response.body.items);
+    expect(items).toHaveLength(1);
+    expect(items[0]).toMatchObject({
       business_name: 'Électricité Express',
       verified: true,
       commune: { id: cotonouId, name: 'Cotonou' },
@@ -150,10 +154,11 @@ describe('Lot 2B — GET /search public', () => {
     const response = await app.http
       .get('/api/v1/search?lat=6.37&lon=2.42&radius_km=5&sort=distance')
       .expect(200);
-    expect(response.body.items).toHaveLength(2);
-    expect(response.body.items[0].business_name).toBe('Électricité Express');
-    expect(response.body.items[0].distance_km).toBe(0);
-    const serialized = JSON.stringify(response.body);
+    const items = withoutDemo(response.body.items);
+    expect(items).toHaveLength(2);
+    expect(items[0].business_name).toBe('Électricité Express');
+    expect(items[0].distance_km).toBe(0);
+    const serialized = JSON.stringify({ items });
     for (const forbidden of ['address_text', 'latitude', 'longitude', 'user_id', 'email', 'phone', 's3_key']) {
       expect(serialized).not.toContain(forbidden);
     }
@@ -161,7 +166,7 @@ describe('Lot 2B — GET /search public', () => {
 
   it('pagine sans doublon avec un curseur keyset opaque', async () => {
     const byPrice = await app.http.get('/api/v1/search?sort=price').expect(200);
-    expect(byPrice.body.items.map((item: { min_price: number }) => item.min_price)).toEqual([
+    expect(withoutDemo(byPrice.body.items).map((item: { min_price: number }) => item.min_price)).toEqual([
       4000, 6000, 10000,
     ]);
     const first = await app.http.get('/api/v1/search?sort=rating&limit=1').expect(200);

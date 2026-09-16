@@ -71,10 +71,10 @@ describe('Lot 2A — projection Search fiable', () => {
     );
     await db.query(
       `INSERT INTO pros.profiles (id, user_id, business_name, headline,
-         status, verified, rating_avg, rating_count, trust_score,
+         description, status, verified, rating_avg, rating_count, trust_score,
          completed_jobs, min_price, currency, country_code, version,
          created_at, updated_at)
-       VALUES ($1, $2, 'Électricité Lumière', 'Électricien bâtiment', 'ACTIVE',
+       VALUES ($1, $2, 'Électricité Lumière', 'Électricien bâtiment', 'Description de test', 'ACTIVE',
          false, 4.6, 8, 0.8, 9, 7500, 'XOF', 'BJ', 3, now(), now())`,
       [professionalId, userId],
     );

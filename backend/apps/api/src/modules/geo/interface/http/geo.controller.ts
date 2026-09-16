@@ -1,4 +1,4 @@
-import { Controller, Get, NotFoundException, Param, Query } from '@nestjs/common';
+import { Controller, Get, NotFoundException, Param, ParseUUIDPipe, Query } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { IsIn, IsOptional } from 'class-validator';
 import { Repository } from 'typeorm';
@@ -60,6 +60,23 @@ export class GeoController {
         ...(query.type ? { type: query.type } : {}),
       },
       order: { depth: 'ASC', name: 'ASC' },
+    });
+    return { items };
+  }
+
+  @Get('divisions/:divisionId/localities')
+  async listLocalities(
+    @Param('divisionId', new ParseUUIDPipe()) divisionId: string,
+  ) {
+    const parent = await this.divisions.findOne({
+      select: { id: true },
+      where: { id: divisionId, active: true },
+    });
+    if (!parent) throw new NotFoundException({ code: 'division_not_found' });
+    const items = await this.divisions.find({
+      select: { id: true, name: true },
+      where: { parent_id: divisionId, active: true },
+      order: { name: 'ASC', id: 'ASC' },
     });
     return { items };
   }

@@ -1,7 +1,11 @@
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { randomUUID } from 'node:crypto';
 import { DataSource } from 'typeorm';
+import { SearchProjectionPortToken } from '../../src/modules/search/application/ports/search-projection.port';
+import type { SearchProjectionPort } from '../../src/modules/search/application/ports/search-projection.port';
 import { createTestApp } from '../test-app';
+
+interface AuthPair { access_token: string; }
 
 const PHONE = '66990100001';
 
@@ -9,10 +13,12 @@ describe('Lot 1 — Catalogue, Geo et fiche professionnelle publique', () => {
   let app: Awaited<ReturnType<typeof createTestApp>>;
   let db: DataSource;
   let profileId: string;
+  let projection: SearchProjectionPort;
 
   beforeAll(async () => {
     app = await createTestApp();
     db = app.app.get(DataSource);
+    projection = app.app.get(SearchProjectionPortToken);
     await cleanup();
     profileId = await seedPublicProfessional();
   });
@@ -27,6 +33,9 @@ describe('Lot 1 — Catalogue, Geo et fiche professionnelle publique', () => {
       SELECT id FROM pros.profiles WHERE user_id IN
         (SELECT id FROM users.users WHERE phone = $1))`, [PHONE]);
     await db.query(`DELETE FROM pros.reputation WHERE professional_id IN (
+      SELECT id FROM pros.profiles WHERE user_id IN
+      (SELECT id FROM users.users WHERE phone = $1))`, [PHONE]);
+    await db.query(`DELETE FROM pros.services WHERE professional_id IN (
       SELECT id FROM pros.profiles WHERE user_id IN
         (SELECT id FROM users.users WHERE phone = $1))`, [PHONE]);
     await db.query(`DELETE FROM pros.locations WHERE professional_id IN (
@@ -63,6 +72,14 @@ describe('Lot 1 — Catalogue, Geo et fiche professionnelle publique', () => {
     const divisions = await db.query(
       `SELECT id FROM geo.divisions WHERE name = 'Cotonou' AND type = 'COMMUNE' LIMIT 1`,
     );
+    const categories = await db.query(
+      `SELECT id FROM pros.categories WHERE slug = 'electriciens' AND country_code = 'BJ' LIMIT 1`,
+    );
+    await db.query(
+      `INSERT INTO pros.services (id, professional_id, category_id, title, is_primary, created_at, updated_at)
+       VALUES ($1, $2, $3, 'Dépannage électrique', true, now(), now())`,
+      [randomUUID(), proId, categories[0].id],
+    );
     await db.query(
       `INSERT INTO pros.locations (professional_id, country_code, division_id,
          location, service_radius_km, address_text, updated_at)
@@ -86,6 +103,16 @@ describe('Lot 1 — Catalogue, Geo et fiche professionnelle publique', () => {
     return proId;
   }
 
+  async function loginFor(phone: string): Promise<AuthPair> {
+    await app.http.post('/api/v1/auth/otp/request')
+      .send({ country_code: 'BJ', phone, purpose: 'LOGIN' }).expect(202);
+    const code = app.sms.lastCode('BJ', phone);
+    const response = await app.http.post('/api/v1/auth/login')
+      .send({ country_code: 'BJ', phone, code, device: { session_id: 'r03a-public' } })
+      .expect(200);
+    return { access_token: response.body.access_token };
+  }
+
   it('lists only active catalogue entries', async () => {
     const response = await app.http.get('/api/v1/categories?country_code=BJ').expect(200);
     expect(response.body.items.length).toBeGreaterThan(0);
@@ -102,6 +129,14 @@ describe('Lot 1 — Catalogue, Geo et fiche professionnelle publique', () => {
     expect(divisions.body.items.map((item: { name: string }) => item.name)).toEqual(
       expect.arrayContaining(['Cotonou', 'Abomey-Calavi']),
     );
+    const cotonou = divisions.body.items.find((item: { name: string }) => item.name === 'Cotonou');
+    const calavi = divisions.body.items.find((item: { name: string }) => item.name === 'Abomey-Calavi');
+    for (const division of [cotonou, calavi]) {
+      const response = await app.http.get(`/api/v1/geo/divisions/${division.id}/localities`).expect(200);
+      expect(response.body.items.every((item: Record<string, unknown>) => Object.keys(item).sort().join(',') === 'id,name')).toBe(true);
+    }
+    await app.http.get('/api/v1/geo/divisions/not-a-uuid/localities').expect(400);
+    await app.http.get(`/api/v1/geo/divisions/${randomUUID()}/localities`).expect(404);
   });
 
   it('publishes an unverified ACTIVE professional without private fields', async () => {
@@ -119,6 +154,7 @@ describe('Lot 1 — Catalogue, Geo et fiche professionnelle publique', () => {
     expect(response.body.location).not.toHaveProperty('lat');
     expect(response.body.location).not.toHaveProperty('lon');
     expect(response.body.location).not.toHaveProperty('address_text');
+    expect(response.body.business_hours).toEqual([]);
     expect(response.body.portfolio).toHaveLength(1);
     expect(response.body.portfolio[0]).not.toHaveProperty('s3_key');
   });
@@ -128,5 +164,57 @@ describe('Lot 1 — Catalogue, Geo et fiche professionnelle publique', () => {
     await db.query(`UPDATE pros.profiles SET status = 'SUSPENDED' WHERE id = $1`, [profileId]);
     const response = await app.http.get(`/api/v1/professionals/${profileId}`).expect(404);
     expect(response.body.code).toBe('professional_not_found');
+  });
+
+  it('hides an incomplete profile while keeping /me available', async () => {
+    await db.query(`UPDATE pros.profiles SET status = 'ACTIVE', description = '' WHERE id = $1`, [profileId]);
+    await projection.rebuild(profileId);
+    const { access_token } = await loginFor(PHONE);
+    await app.http.get('/api/v1/professionals/me').set('Authorization', `Bearer ${access_token}`).expect(200);
+    expect((await app.http.get(`/api/v1/professionals/${profileId}`)).status).toBe(404);
+    expect((await app.http.get('/api/v1/search?q=Alpha')).body.items.some(
+      (item: { id: string }) => item.id === profileId,
+    )).toBe(false);
+    const service = await db.query(`SELECT id FROM pros.services WHERE professional_id = $1 LIMIT 1`, [profileId]);
+    await db.query(`UPDATE pros.services SET deleted_at = now() WHERE id = $1`, [service[0].id]);
+    await projection.rebuild(profileId);
+    expect((await app.http.get(`/api/v1/professionals/${profileId}`)).status).toBe(404);
+    expect((await app.http.get('/api/v1/search?q=Alpha')).body.items.some(
+      (item: { id: string }) => item.id === profileId,
+    )).toBe(false);
+    await db.query(`UPDATE pros.services SET deleted_at = null WHERE id = $1`, [service[0].id]);
+    await db.query(`UPDATE pros.profiles SET description = 'Description' WHERE id = $1`, [profileId]);
+    await projection.rebuild(profileId);
+    await app.http.get(`/api/v1/professionals/${profileId}`).expect(200);
+  });
+
+  it('recalcule la publication après localité inactive, suspension et réactivation', async () => {
+    const locality = await db.query(`SELECT division_id FROM pros.locations WHERE professional_id = $1`, [profileId]);
+    const divisionId = locality[0].division_id;
+    await db.query(`UPDATE geo.divisions SET active = false WHERE id = $1`, [divisionId]);
+    await projection.rebuild(profileId);
+    await app.http.get(`/api/v1/professionals/${profileId}`).expect(404);
+    await db.query(`UPDATE geo.divisions SET active = true WHERE id = $1`, [divisionId]);
+    await projection.rebuild(profileId);
+    await app.http.get(`/api/v1/professionals/${profileId}`).expect(200);
+    await db.query(`UPDATE users.users SET status = 'SUSPENDED' WHERE phone = $1`, [PHONE]);
+    await projection.rebuild(profileId);
+    await app.http.get(`/api/v1/professionals/${profileId}`).expect(404);
+    await db.query(`UPDATE users.users SET status = 'ACTIVE' WHERE phone = $1`, [PHONE]);
+    await projection.rebuild(profileId);
+    await app.http.get(`/api/v1/professionals/${profileId}`).expect(200);
+  });
+
+  it('utilise la fonction SQL 017 comme source commune pour search et fiche publique', async () => {
+    const rows = await db.query(
+      `SELECT pg_get_functiondef('search.is_professional_publishable(uuid)'::regprocedure) AS definition`,
+    );
+    expect(rows[0].definition).toContain("NULLIF(trim(p.description), '') IS NOT NULL");
+    expect(rows[0].definition).toContain('pros.services');
+    expect(rows[0].definition).toContain('geo.divisions');
+    expect((await app.http.get('/api/v1/search?q=Alpha')).body.items.some(
+      (item: { id: string }) => item.id === profileId,
+    )).toBe(true);
+    await app.http.get(`/api/v1/professionals/${profileId}`).expect(200);
   });
 });

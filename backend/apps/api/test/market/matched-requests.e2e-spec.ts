@@ -42,8 +42,8 @@ describe('Lot 3B — demandes compatibles professionnel', () => {
     proToken = professional.token;
     proId = randomUUID();
     await db.query(`INSERT INTO pros.profiles
-      (id,user_id,business_name,status,verified,currency,country_code,created_at,updated_at)
-      VALUES($1,$2,'Pro matching','ACTIVE',false,'XOF','BJ',now(),now())`, [proId, professional.id]);
+      (id,user_id,business_name,description,status,verified,currency,country_code,created_at,updated_at)
+      VALUES($1,$2,'Pro matching','Description de test','ACTIVE',false,'XOF','BJ',now(),now())`, [proId, professional.id]);
     await db.query(`INSERT INTO pros.services
       (id,professional_id,category_id,title,is_primary,created_at,updated_at)
       VALUES($1,$2,$3,'Plomberie',true,now(),now())`, [randomUUID(), proId, categoryId]);
