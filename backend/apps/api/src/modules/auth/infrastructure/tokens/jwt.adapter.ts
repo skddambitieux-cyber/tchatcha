@@ -9,20 +9,28 @@ import { TokenClaims, TokenManagerPort } from '../../application/ports/token-man
 
 @Injectable()
 export class JwtAdapter implements TokenManagerPort {
+  private readonly secret: string;
+
   constructor(
     private readonly jwt: JwtService,
     private readonly config: ConfigService,
-  ) {}
+  ) {
+    const secret = this.config.get<string>('JWT_SECRET');
+    if (!secret?.trim()) {
+      throw new Error('JWT_SECRET est obligatoire pour démarrer l’API.');
+    }
+    this.secret = secret;
+  }
 
   signAccess(payload: TokenClaims): string {
     return this.jwt.sign(payload, {
-      secret: this.config.get<string>('JWT_SECRET'),
+      secret: this.secret,
     });
   }
 
   verifyAccess(token: string): TokenClaims {
     return this.jwt.verify<TokenClaims>(token, {
-      secret: this.config.get<string>('JWT_SECRET'),
+      secret: this.secret,
     });
   }
 }
